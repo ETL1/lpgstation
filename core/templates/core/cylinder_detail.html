@@ -1,0 +1,10 @@
+
+{% extends 'core/base.html' %}
+{% block content %}
+<h2>Cylinder {{ object.id }}</h2>
+<p>Item: {{ object.item }}</p>
+<p>Status: {{ object.status }}</p>
+<p>Location: {{ object.location }}</p>
+{% if object.qr_code %}<p><img src="{{ object.qr_code.url }}" width="200"></p>{% endif %}
+<p><a href="{% url 'core:cylinder-edit' object.id %}">Edit</a></p>
+{% endblock %}

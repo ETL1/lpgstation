@@ -1,0 +1,15 @@
+
+{% extends 'core/base.html' %}
+{% block content %}
+<h2>Cylinders</h2>
+<p><a href="{% url 'core:cylinder-create' %}">Add Cylinder</a></p>
+<table border="1" cellpadding="6">
+<tr><th>ID</th><th>Item</th><th>Status</th><th>Location</th><th></th></tr>
+{% for c in object_list %}
+<tr>
+  <td>{{ c.id }}</td><td>{{ c.item }}</td><td>{{ c.status }}</td><td>{{ c.location }}</td>
+  <td><a href="{% url 'core:cylinder-detail' c.id %}">Open</a></td>
+</tr>
+{% empty %}<tr><td colspan="5">None</td></tr>{% endfor %}
+</table>
+{% endblock %}

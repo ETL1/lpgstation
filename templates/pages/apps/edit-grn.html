@@ -1,0 +1,243 @@
+{% extends 'partials/layout-main.html' %}
+{% load static %}{% load custom_tags %}
+        
+{% block content %}
+<!--begin::Content wrapper-->
+                <div class="d-flex flex-column flex-column-fluid">
+                                            
+<!--begin::Toolbar-->
+<div id="kt_app_toolbar" class="app-toolbar  py-3 py-lg-6 " 
+     
+         >
+
+            <!--begin::Toolbar container-->
+        <div id="kt_app_toolbar_container" class="app-container  container-xxl d-flex flex-stack ">
+            
+    
+
+<!--begin::Page title-->
+<div  class="page-title d-flex flex-column justify-content-center flex-wrap me-3 ">
+    <!--begin::Title-->
+    <h1 class="page-heading d-flex text-gray-900 fw-bold fs-3 flex-column justify-content-center my-0">
+        Edit
+            </h1>
+    <!--end::Title-->
+
+            
+        <!--begin::Breadcrumb-->
+        <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
+                            <!--begin::Item-->
+                                    <li class="breadcrumb-item text-muted">
+                                                    <a href="../../index.html" class="text-muted text-hover-primary">
+                                Home                            </a>
+                                            </li>
+                                <!--end::Item-->
+                                    <!--begin::Item-->
+                    <li class="breadcrumb-item">
+                        <span class="bullet bg-gray-500 w-5px h-2px"></span>
+                    </li>
+                    <!--end::Item-->
+                                        
+                            <!--begin::Item-->
+                                    <li class="breadcrumb-item text-muted">
+                                                    GRN Editor                                            </li>
+                                <!--end::Item-->
+                                        
+                    </ul>
+        <!--end::Breadcrumb-->
+    </div>
+<!--end::Page title-->
+<!--begin::Actions-->
+<div class="d-flex align-items-center gap-2 gap-lg-3">
+            
+    
+    
+    <!--begin::Secondary button-->
+        <!--end::Secondary button-->
+    
+    <!--begin::Primary button-->
+        <!--end::Primary button-->
+</div>
+<!--end::Actions-->
+        </div>
+        <!--end::Toolbar container-->
+    </div>
+<!--end::Toolbar-->                                        
+                    
+<!--begin::Content-->
+<div id="kt_app_content" class="app-content  flex-column-fluid " >
+    
+           
+        <!--begin::Content container-->
+        <div id="kt_app_content_container" class="app-container  container-xxl ">
+            <!--begin::Layout-->
+<div class="d-flex flex-column flex-lg-row">
+    <!--begin::Content-->
+    <div class="flex-lg-row-fluid mb-10 mb-lg-0 me-lg-7 me-xl-10">
+        <!--begin::Card--> 
+<div class="card">     
+    <!--begin::Card body-->
+    <div class="card-body p-12">
+        <!--begin::Form-->
+        <form action="/grn/save-edit/" enctype="multipart/form-data"
+                                onsubmit="return true;"
+                                 method="POST" id="kt_invoice_form">
+                                 {% csrf_token %}
+            <!--begin::Wrapper-->
+            <div class="d-flex flex-column align-items-start flex-xxl-row">
+                
+                <!--begin::Input group-->
+                {% for x in grn %}
+                <div class="d-flex flex-center flex-equal fw-row text-nowrap order-1 order-xxl-2 me-4" data-bs-toggle="tooltip" data-bs-trigger="hover" title="Enter GRN number">
+                    <span class="fs-2 fw-bold text-gray-800">GRN EDITOR</span> 
+                    <input type="text" class="form-control form-control-flush fw-bold text-muted fs-3" disabled value="{{ x.grn_number }}" placehoder="..."/><br/>
+                    <input type="hidden" class="form-control form-control-flush fw-bold text-muted fs-3" name="grn_id" value="{{ x.id }}">
+                    <span class="fs-2 fw-bold text-gray-800">{{ x.made_date }}</span> 
+                </div>               
+                {% endfor %} 
+                <!--end::Input group--> 
+            </div>                
+            <!--end::Top-->       
+
+            <!--begin::Separator-->
+            <div class="separator separator-dashed my-10"></div>
+            <!--end::Separator-->         
+
+            <!--begin::Wrapper-->
+            <div class="mb-0">
+                
+                <!--begin::Table wrapper-->
+                <div class="table-responsive mb-10">
+                     <!--begin::Table-->
+                    <table class="table g-5 gs-0 mb-0 fw-bold text-gray-700" data-kt-element="items">
+                        <!--begin::Table head-->
+                        <thead>
+                            <tr class="border-bottom fs-7 fw-bold text-gray-700 text-uppercase">
+                                <th class="min-w-300px w-225px">Item</th>
+                                <th class="min-w-100px w-150px">QTY</th>
+                                <th class="min-w-100px w-w200px text-end">Description</th>
+                                <th class="min-w-75px w-75px text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <!--end::Table head-->
+
+                        <!--begin::Table body-->
+                        <tbody>
+                            {% for v in items %}
+                            <tr class="border-bottom border-bottom-dashed" data-kt-element="item">
+                                <td class="pe-7">
+                                    <select class="form-select form-select-solid mb-2"
+                                            name="item"
+                                            id="base{{ v.id }}"
+                                            data-control="select2"
+                                            data-placeholder="Select Item">
+                                        <option></option>
+                                        {% for r in prod %}
+                                        {% if r.id == v.item_id.id %}
+                                            <option value="{{ r.item_id }}" selected>
+                                                {{ r.name }}
+                                            </option>
+                                        {% else %}
+                                            <option value="{{ r.item_id }}">
+                                                {{ r.name }}
+                                            </option>
+                                        {% endif %}
+                                        {% empty %}
+                                            <option disabled>No items available</option>
+                                        {% endfor %}
+                                    </select>
+                                          
+                                </td>
+
+                                <td class="ps-0">                                            
+                                    <input type="text" class="form-control form-control-solid" type="number" min="1" name="quantity" placeholder="1" value="{{ v.quantity }}" data-kt-element="quantity"/>
+                                </td>
+
+                                
+                                <td class="pt-5 text-end text-nowrap">
+                                    <input type="text" class="form-control form-control-solid" name="comments" value="{{ v.admin_comment }}" placeholder="Description"/>     
+                                </td>
+
+                                <td class="pt-5 text-end">
+                                    <button type="button" class="btn btn-sm btn-icon btn-active-color-primary" data-kt-element="remove-item">
+                                        <i class="ki-duotone ki-trash fs-3"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span><span class="path5"></span></i>                                    </button>                             
+                                </td>
+                            </tr>
+                            {% endfor %}        
+                        </tbody>
+                        <!--end::Table body-->
+
+                        <!--begin::Table foot-->
+                        <tfoot>
+                            <tr class="border-top border-top-dashed align-top fs-6 fw-bold text-gray-700">
+                                <th class="text-primary">
+                                    <button class="btn btn-link py-1" data-kt-element="add-item">Add item</button>
+                                </th>  
+
+                                
+                            </tr>    
+                            
+                                  
+                        </tfoot>
+                        <!--end::Table foot-->
+                    </table>
+                </div>  
+                <!--end::Table-->
+
+                <!--begin::Item template-->
+                <table class="table d-none" data-kt-element="item-template">
+                    <tr class="border-bottom border-bottom-dashed" data-kt-element="item">
+                        <td class="pe-7">                                            
+                            <select class="form-select form-select-solid mb-2" name="item" aria-label="Select example" placeholder="Select Item">
+                                <option disabled selected>Select Item</option>
+                                {% for x in prod %}<option value="{{ x.item_id }}">{{ x.name }}</option>{% empty %}<option value="">No Items</option>{% endfor %}
+                            </select>
+
+                        </td>
+
+                        <td class="ps-0">                                            
+                            <input type="text" class="form-control form-control-solid" type="number" min="1" name="quantity" placeholder="1" data-kt-element="quantity"/>
+                        </td>
+
+                        <td class="pt-5 text-end text-nowrap">
+                            <input type="text" class="form-control form-control-solid" name="comments" placeholder="Description"/>     
+                        </td>
+
+                        <td class="pt-5 text-end">
+                            <button type="button" class="btn btn-sm btn-icon btn-active-color-primary" data-kt-element="remove-item">
+                                <i class="ki-duotone ki-trash fs-3"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span><span class="path5"></span></i>                            </button>                             
+                        </td>
+                    </tr>
+                </table>
+
+                <table class="table d-none" data-kt-element="empty-template">
+                    <tr data-kt-element="empty">
+                        <th colspan="5" class="text-muted text-center py-10">
+                            No items
+                        </th>
+                    </tr>
+                </table>
+                <!--end::Item template-->
+            <button type="submit" class="btn btn-primary w-50 mt-5" id="kt_invoice_submit_button"><i class="ki-duotone ki-triangle fs-3"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>Generate GRN
+            </button>
+            </div>   
+            <!--end::Wrapper-->          
+        </form>
+        <!--end::Form-->
+    </div>
+    <!--end::Card body-->
+</div>     
+<!--end::Card-->         
+    </div>  
+    <!--end::Content-->
+
+   
+</div>
+<!--end::Layout-->              </div>
+        <!--end::Content container-->
+    </div>
+<!--end::Content-->	
+
+                                    </div>
+                <!--end::Content wrapper-->
+{% endblock %}

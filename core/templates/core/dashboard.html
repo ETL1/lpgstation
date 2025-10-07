@@ -1,0 +1,16 @@
+
+{% extends 'core/base.html' %}
+{% block content %}
+<h2>Dashboard</h2>
+<ul>
+  <li>Total cylinders: {{ cyl_total }}</li>
+  <li>Pending orders: {{ orders_pending }}</li>
+  <li>Refills: {{ refill_count }}</li>
+  <li>Sales amount: {{ sales_amount }}</li>
+</ul>
+<p>
+  <a href="{% url 'core:cylinder-create' %}">Add Cylinder</a> |
+  <a href="{% url 'core:refill-create' %}">Record Refill</a> |
+  <a href="{% url 'core:sale-create' %}">Record Item Sale</a>
+</p>
+{% endblock %}
