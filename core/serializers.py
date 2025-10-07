@@ -1,4 +1,4 @@
-from core.models import Product, Refill, Sale
+from core.models import GRN, GRNItems, Item, Product, Refill, Sale
 from rest_framework import serializers
 
 
@@ -16,6 +16,12 @@ class RefillSerializer(serializers.ModelSerializer):
         )
         model = Refill
 
+class ItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Item
+        fields = ['id', 'name', 'item_type', 'size_kg', 'base_price']
+        
+        
 class SalesSerializer(serializers.ModelSerializer):
     class Meta:
         fields = (
@@ -36,5 +42,43 @@ class ProductsSerializer(serializers.ModelSerializer):
             'sku',
             'item_pic',
             'status',
+            'unit_price',
+            'active',
+            'stock',
         )
         model = Product
+        
+
+class GRNItemSerializer(serializers.ModelSerializer):
+    product = ProductsSerializer(read_only=True)
+    item = ItemSerializer(read_only=True)
+
+    class Meta:
+        model = GRNItems
+        fields = [
+            'id',
+            'product',
+            'item',
+            'quantity',
+            'added_date',
+            'status',
+            'admin_comment',
+            'site_comment',
+        ]
+
+class GRNSerializer(serializers.ModelSerializer):
+    items = GRNItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = GRN
+        fields = [
+            'grn_Id',
+            'initia',
+            'grn_number',
+            'made_date',
+            'status',
+            'qr_code',
+            'assigned_site',
+            'rec_by',
+            'items'
+        ]

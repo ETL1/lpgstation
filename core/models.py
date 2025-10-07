@@ -2,6 +2,7 @@
 from decimal import Decimal
 from django.db import models
 from django.conf import settings
+
 from .utils import make_qr_png
 import uuid
 import qrcode
@@ -263,13 +264,20 @@ class GRN(models.Model):
     made_date = models.DateTimeField(default=datetime.now, blank=True)
     status = models.CharField(default=0, null=False, max_length=3)
     qr_code = models.ImageField(upload_to='qr/grn/', blank=True)
+    rec_by = models.CharField(max_length=90, null=True)
+    assigned_site = models.ForeignKey(
+        'Container', on_delete=models.SET_NULL, null=True, blank=True
+    )
 
     def __str__(self):
         return self.grn_Id
 
+    
 class GRNItems(models.Model):
-    grn = models.ForeignKey(GRN, on_delete=models.CASCADE)
-    item_id = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="grn_items", null=True)
+    grn = models.ForeignKey(GRN, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True, related_name="grn_products")
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, null=True, blank=True, related_name="grn_items")
+
     quantity = models.CharField(max_length=70, null=True)
     added_date = models.DateTimeField(default=datetime.now, blank=True)
     status = models.BooleanField(default=False)
@@ -277,7 +285,8 @@ class GRNItems(models.Model):
     site_comment = models.TextField(null=True)
 
     def __str__(self):
-        return f"{self.item_id} - ({self.grn})"
+        return f"{self.product or self.item} - ({self.grn})"
+
 
 
 @receiver(pre_save, sender=GRN)

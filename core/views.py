@@ -2,6 +2,8 @@
 from datetime import datetime, timezone
 import uuid
 from django.utils import timezone
+
+from core import serializers
 from .models import CloseOfDayOTP
 from lpg_station.functions import calculate_totals, generate_otp
 from decimal import Decimal
@@ -12,7 +14,7 @@ from django.db.models import Sum
 from django.shortcuts import redirect, get_object_or_404, render
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from core.serializers import RefillSerializer, SalesSerializer
+from core.serializers import GRNItemSerializer, GRNSerializer, RefillSerializer, SalesSerializer
 from login.models import CustomUser
 from login.serializers import ActivaSerializer
 from lpg_station.functions import generate_sku
@@ -656,9 +658,15 @@ def refill_func(request):
                 else:
                     print(f'{refill_serializer.errors} if error')
                     return Response(refill_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                    # return Response(response, status=status.HTTP_400_BAD_REQUEST)
             except:
-                print(f'{refill_serializer.errors} try error')
-                return Response(refill_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                response = {
+                        'response': 'Transaction was unsuccessful',
+                        'resMssg': 0,
+                        'refill_id': '',
+                    }
+                print(f"{response['response']} try error ")
+                return Response(response, status=status.HTTP_400_BAD_REQUEST)
         return Response(refill_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
@@ -698,6 +706,64 @@ def myRefillList(request, pk):
         return Response(serializer.data)
     else:
         return Response(status=status.HTTP_401_UNAUTHORIZED)
+    
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def myGRNList(request):
+    if request.method != "POST":
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    data = JSONParser().parse(request)
+    qr_code_str = data.get('qr_code')
+    try:
+        grn = GRN.objects.get(grn_Id=qr_code_str)
+    except GRN.DoesNotExist:
+        return Response({'error': 'GRN not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = GRNSerializer(grn)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def myGRNaccept(request):
+    if request.method != "POST":
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    data = JSONParser().parse(request)
+    qr_code_str = data.get('qr_code')
+    uid = data.get('uid')
+
+    if not qr_code_str or not uid:
+        return Response({'error': 'Missing qr_code or uid'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        grn = GRN.objects.get(grn_Id__icontains=qr_code_str)  # search by filename
+    except GRN.DoesNotExist:
+        print(f"'error': 'User not found 1'")
+        return Response({'error': 'GRN not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        user = CustomUser.objects.get(uid=uid)
+    except CustomUser.DoesNotExist:
+        print(f"'error': 'User not found 2'")
+        print(uid)
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Assign user and site
+    grn.rec_by = user.uid
+    grn.assigned_site = user.site_id
+    grn.save()
+
+    return Response({
+        'response': 'Transaction was successful',
+        'resMssg': 1
+    }, status=status.HTTP_201_CREATED)
+
+
+
 
 @login_required
 def token_list(request):
