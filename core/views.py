@@ -248,7 +248,7 @@ def refill_list(request):
     total_price = (
         refills.annotate(
             line_total=ExpressionWrapper(
-                F("quantity_kg") * 45,   # or F("item__base_price")
+                F("quantity_kg") * 47,   # or F("item__base_price")
                 output_field=DecimalField()
             )
         ).aggregate(total=Sum("line_total"))["total"] or 0
@@ -349,7 +349,7 @@ def container_view(request, pk):
     total_price = (
         refills.annotate(
             line_total=ExpressionWrapper(
-                F("quantity_kg") * 45,   # or F("item__base_price")
+                F("quantity_kg") * 47,   # or F("item__base_price")
                 output_field=DecimalField()
             )
         ).aggregate(total=Sum("line_total"))["total"] or 0

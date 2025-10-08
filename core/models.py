@@ -162,7 +162,7 @@ class Cylinder(TimeStamped):
             return ("badge-light-success", "Stocked")
         elif _vr >= 3.00:
             return ("badge-light-warning", "Low Stock")
-        elif _vr >= 1.00:
+        elif _vr >= 1.50:
             return ("badge-light-danger", "Out of Stock")
         else:
             return ("badge-light-dark", "---")
