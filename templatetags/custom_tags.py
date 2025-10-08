@@ -267,7 +267,7 @@ def get_stock(owner):
 
 @register.simple_tag
 def get_total_price(rate):
-    _value = 45
+    _value = 47
     _value *= (int(rate))
                 # print(c.rate)
     return format(_value, ",")
@@ -293,7 +293,7 @@ def cylinder_dispense_sales(pk):
     total_price = (
         refills.annotate(
             line_total=ExpressionWrapper(
-                F("quantity_kg") * 45,   # or F("item__base_price")
+                F("quantity_kg") * 47,   # or F("item__base_price")
                 output_field=DecimalField()
             )
         ).aggregate(total=Sum("line_total"))["total"] or 0
