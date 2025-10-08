@@ -1,3 +1,4 @@
+from datetime import datetime
 import time
 from uuid import uuid4
 import string
@@ -45,29 +46,47 @@ def generate_cylinder_sku():
     rand_part = ''.join(random.choices(string.digits, k=6))
     return f"{rand_part}"
 
-def generate_otp(user):
-    code = str(random.randint(100000, 999999))  # 6-digit OTP
-    otp = models.CloseOfDayOTP.objects.create(user=user, code=code)
-    # TODO: send via email/SMS — for now, print or return
-    print(f"Generated OTP for {user.username}: {code}")
-    return otp
 
 
-def calculate_totals(user):
-    last_closure = models.CloseOfDayOTP.objects.order_by("-end_date").first()
-    start_date = last_closure.end_date if last_closure else timezone.make_aware(timezone.datetime.min)
-    end_date = timezone.now()
 
-    qs = models.Refill.objects.filter(created_at__gte=start_date, created_at__lt=end_date)
-    total_amount = qs.aggregate(total=models.Sum("amount"))["total"] or 0
-    total_transactions = qs.count()
+# def generate_otp(user):
+#     """Generate and log a 6-digit OTP"""
+#     code = str(random.randint(100000, 999999))
+#     otp = models.CloseOfDayOTP.objects.create(user=user, code=code)
+#     print(f"Generated OTP for {user.username}: {code}")  # simulate SMS/email
+#     return otp
 
-    return {
-        "start_date": start_date,
-        "end_date": end_date,
-        "total_amount": total_amount,
-        "total_transactions": total_transactions,
-    }
+
+# def calculate_refill_totals():
+#     """Calculate totals from last closure to now."""
+#     last_closure = models.CloseOfDay.objects.order_by("-end_date").first()
+
+#     if last_closure:
+#         start_date = last_closure.end_date
+#     else:
+#         # Use earliest refill date or safe default
+#         first_refill = models.Refill.objects.order_by("created_at").first()
+#         if first_refill:
+#             start_date = first_refill.created_at
+#         else:
+#             # fallback: 1 Jan 2000 (safe for all databases)
+#             start_date = timezone.make_aware(datetime(2000, 1, 1))
+
+#     end_date = timezone.now()
+
+#     qs = models.Refill.objects.filter(created_at__gte=start_date, created_at__lt=end_date)
+
+#     total_amount = qs.aggregate(total=models.Sum("total_price"))["total"] or 0
+#     total_quantity = qs.aggregate(total=models.Sum("quantity_kg"))["total"] or 0
+#     total_refills = qs.count()
+
+#     return {
+#         "start_date": start_date,
+#         "end_date": end_date,
+#         "total_amount": total_amount,
+#         "total_quantity": total_quantity,
+#         "total_refills": total_refills,
+#     }
 
 
 # def get_company_status(access, owner):

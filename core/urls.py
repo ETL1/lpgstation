@@ -51,4 +51,12 @@ urlpatterns = [
     path('containers/new/', views.add_container, name='container-create'),
     path('containers/<str:pk>/', views.container_view, name='container-detail'),
     path('containers/<uuid:pk>/edit/', views.ContainerEdit.as_view(), name='container-edit'),
+    
+    # path("close-day/", views.close_day_request, name="close_day_request"),
+    # path("close-day/verify/", views.close_day_verify, name="close_day_verify"),
+    # path("close-day/success/", views.close_day_success, name="close_day_success"),
+    
+    path('close-request/', views.request_close_of_day, name='request_close_of_day'),
+    path('close-verify/', views.verify_close_of_day, name='verify_close_of_day'),
+    
 ]

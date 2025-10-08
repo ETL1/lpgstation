@@ -1,11 +1,12 @@
 
 from datetime import datetime, timezone
+import json
 import uuid
 from django.utils import timezone
 
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from core import serializers
-from .models import CloseOfDayOTP
-from lpg_station.functions import calculate_totals, generate_otp
+from .models import CloseOfDay, generate_otp
 from decimal import Decimal
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView, ListView, DetailView, CreateView, UpdateView
@@ -468,13 +469,22 @@ def make_grn(request):
         from itertools import zip_longest
         for itm, qty, comm in zip_longest(items, quantities, comments, fillvalue=None):
             if itm and qty:
-                itmx = Product.objects.get(item_id=itm)
-                GRNItems.objects.create(
+                try:
+                    itmx = Item.objects.get(id=itm)
+                    GRNItems.objects.create(
                     grn=push_grn,
-                    item_id=itmx,
+                    item=itmx,
                     quantity=qty,
                     admin_comment=comm
                 )
+                except:
+                    itmx = Product.objects.get(item_id=itm)
+                    GRNItems.objects.create(
+                        grn=push_grn,
+                        product=itmx,
+                        quantity=qty,
+                        admin_comment=comm
+                    )
         
         qr = qrcode.QRCode(
             version=1,
@@ -615,7 +625,7 @@ def activate_user(request, id):
 
 @api_view(['POST', ])
 @permission_classes([AllowAny])
-def refill_func(request):
+def _refill_func(request):
     # info_data = CustomUser.objects.get(uid=pk)
     if request.method == "POST":
         refill_data = JSONParser().parse(request)
@@ -653,6 +663,7 @@ def refill_func(request):
                     }
                     dbpush = Cylinder.objects.get(id=refill_data['qrcode'])
                     dbpush.status = "in_use"
+                    dbpush.location = refill_data['site_id']
                     dbpush.save()
                     return Response(response, status=status.HTTP_201_CREATED)
                 else:
@@ -768,11 +779,13 @@ def myGRNaccept(request):
 @login_required
 def token_list(request):
     items = Product.objects.all()
+    _close = CloseOfDay.objects.all()
 
     context = {
-        'items' : items,
+        'close' : _close,
     }
     return render(request, 'pages/apps/token-list.html', context)
+
 
 @login_required
 def make_token(request):
@@ -787,43 +800,177 @@ def make_token(request):
 
 # @login_required
 # def close_day_request(request):
-#     """Step 1: Request closure → generate OTP"""
-#     data = calculate_totals(request.user)
-#     otp = generate_otp(request.user)
-#     messages.info(request, "An OTP has been generated. Please enter it to confirm closure.")
-#     return render(request, "finance/close_day_verify.html", {"data": data})
+#     """Step 1: Generate OTP and show refill totals"""
+#     data = calculate_refill_totals()
+#     generate_otp(request.user)
+#     messages.info(
+#         request,
+#         "An OTP has been generated. Check the console output to view the code.",
+#     )
+#     return render(request, "pages/apps/close_day_request.html", {"data": data})
 
 
 # @login_required
 # def close_day_verify(request):
-#     """Step 2: Verify OTP and save closure"""
+#     """Step 2: Verify OTP and close day"""
 #     if request.method == "POST":
 #         code = request.POST.get("otp")
+
 #         try:
-#             otp_obj = CloseOfDayOTP.objects.filter(user=request.user, code=code).latest("created_at")
+#             otp_obj = CloseOfDayOTP.objects.filter(
+#                 user=request.user, code=code
+#             ).latest("created_at")
 #         except CloseOfDayOTP.DoesNotExist:
 #             messages.error(request, "Invalid OTP.")
-#             return redirect("close_day_request")
+#             return redirect("core:close_day_request")
 
 #         if not otp_obj.is_valid():
 #             messages.error(request, "OTP expired or already used.")
-#             return redirect("close_day_request")
+#             return redirect("core:close_day_request")
 
-#         # mark OTP as used
 #         otp_obj.is_used = True
 #         otp_obj.save()
 
-#         # finalize closure
-#         data = calculate_totals(request.user)
+#         data = calculate_refill_totals()
 #         CloseOfDay.objects.create(
 #             closed_by=request.user,
 #             start_date=data["start_date"],
 #             end_date=data["end_date"],
 #             total_amount=data["total_amount"],
-#             total_transactions=data["total_transactions"],
+#             total_refills=data["total_refills"],
+#             total_quantity=data["total_quantity"],
 #         )
 
-#         messages.success(request, f"Day closed. Total: {data['total_amount']}")
-#         return redirect("dashboard")
+#         messages.success(
+#             request,
+#             f"Day closed successfully. Total Refills: {data['total_refills']} | Quantity: {data['total_quantity']} kg | Amount: {data['total_amount']}",
+#         )
+#         return redirect("core:close_day_success")
 
-#     return redirect("close_day_request")
+#     return redirect("core:close_day_request")
+
+
+# @login_required
+# def close_day_success(request):
+#     """Confirmation page"""
+#     latest = CloseOfDay.objects.order_by("-created_at").first()
+#     return render(request, "pages/apps/close_day_success.html", {"closure": latest})
+
+# @csrf_exempt
+# def request_close_of_day(request):
+#     """Initiate a new close-of-day request and generate OTP."""
+#     if request.method == "POST":
+#         data = json.loads(request.body)
+#         requested_by = data.get("requested_by")
+
+#         close = CloseOfDay.objects.create(
+#             requested_by=requested_by,
+#             otp=generate_otp()
+#         )
+
+#         close.calculate_totals()
+
+#         return JsonResponse({
+#             "message": "Close of Day OTP generated.",
+#             "otp": close.otp,  # for now, return it directly
+#             "totals": {
+#                 "refills": close.total_refills,
+#                 "amount": str(close.total_amount)
+#             }
+#         })
+
+# @csrf_exempt
+# def verify_close_of_day(request):
+#     """Verify OTP and approve closure."""
+#     if request.method == "POST":
+#         data = json.loads(request.body)
+#         otp = data.get("otp")
+#         approved_by = data.get("approved_by")
+
+#         try:
+#             close = CloseOfDay.objects.get(otp=otp, otp_verified=False)
+#             close.otp_verified = True
+#             close.approved_by = approved_by
+#             close.save()
+
+#             return JsonResponse({
+#                 "message": "Close of Day approved successfully.",
+#                 "from": close.start_date,
+#                 "to": close.end_date,
+#                 "total_refills": close.total_refills,
+#                 "total_amount": str(close.total_amount)
+#             })
+
+#         except CloseOfDay.DoesNotExist:
+#             return JsonResponse({"error": "Invalid or already used OTP."}, status=400)
+
+@csrf_exempt
+def request_close_of_day(request):
+    """Initiate a new close-of-day request and generate OTP."""
+    if request.method == "POST":
+        try:
+            # Try reading JSON
+            data = json.loads(request.body.decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Fallback to form data
+            data = request.POST
+
+        requested_by = data.get("requested_by")
+
+        if not requested_by:
+            return JsonResponse({"error": "requested_by is required"}, status=400)
+
+        close = CloseOfDay.objects.create(
+            requested_by=requested_by,
+            otp=generate_otp()
+        )
+
+        close.calculate_totals()
+
+        return JsonResponse({
+            "message": "Close of Day OTP generated.",
+            "otp": close.otp,
+            "totals": {
+                "refills": close.total_refills,
+                "amount": str(close.total_amount)
+            }
+        })
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+@csrf_exempt
+def verify_close_of_day(request):
+    """Verify OTP and approve closure."""
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            data = request.POST
+
+        otp = data.get("otp")
+        approved_by = data.get("approved_by")
+
+        if not otp or not approved_by:
+            return JsonResponse({"error": "otp and approved_by are required"}, status=400)
+
+        try:
+            close = CloseOfDay.objects.get(otp=otp, otp_verified=False)
+            close.otp_verified = True
+            close.approved_by = approved_by
+            close.total_amount = str(close.total_amount)
+            close.total_refills = close.total_refills
+            close.save()
+
+            return JsonResponse({
+                "message": "Close of Day approved successfully.",
+                "from": close.start_date,
+                "to": close.end_date,
+                "total_refills": close.total_refills,
+                "total_amount": str(close.total_amount)
+            })
+
+        except CloseOfDay.DoesNotExist:
+            return JsonResponse({"error": "Invalid or already used OTP."}, status=400)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)

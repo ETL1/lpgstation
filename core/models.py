@@ -1,5 +1,6 @@
 
 from decimal import Decimal
+import random
 from django.db import models
 from django.conf import settings
 
@@ -18,25 +19,80 @@ from django.utils import timezone
 from datetime import timedelta
 
 
-class CloseOfDayOTP(models.Model):
-    # user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    code = models.CharField(max_length=10)
-    is_used = models.BooleanField(default=False)
-    closed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-    start_date = models.DateTimeField()  # last closure + 1
-    end_date = models.DateTimeField(default=timezone.now)
+
+BASE_PRICE_PER_KG = 47.00  # fixed base price
+
+def generate_otp():
+    return str(random.randint(100000, 999999))
+
+class CloseOfDay(models.Model):
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    requested_by = models.CharField(max_length=90, null=True)
+    approved_by = models.CharField(max_length=90, null=True)
+    date_closed = models.DateTimeField(auto_now_add=True)
+    start_date = models.DateTimeField(null=True)
+    end_date = models.DateTimeField(null=True)
+    total_refills = models.IntegerField(default=0)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total_transactions = models.PositiveIntegerField(default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
+    otp_verified = models.BooleanField(default=False)
+    site_id = models.CharField(max_length=90, null=True)
 
     def __str__(self):
-        return f"COD from {self.start_date.date()} to {self.end_date.date()}"
+        return f"CloseOfDay {self.id} ({self.date_closed.date()})"
 
-    def is_valid(self):
-        return (
-            not self.is_used
-            and timezone.now() <= self.created_at + timedelta(minutes=5)
-        )
+    def calculate_totals(self):
+        """Calculate totals based on base price from last close to now."""
+        from core.models import Refill  # avoid circular import
+
+        # Get last close record
+        last_close = CloseOfDay.objects.exclude(id=self.id).order_by('-date_closed').first()
+        start_date = last_close.end_date if last_close else timezone.make_aware(timezone.datetime(2000, 1, 1))
+        end_date = timezone.now()
+
+        # Filter refills since last closure
+        refills = Refill.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+
+        # Compute totals manually using base price
+        total_refills = refills.count()
+        total_kg = sum([float(r.quantity_kg) for r in refills])
+        total_amount = total_kg * BASE_PRICE_PER_KG
+
+        # Update fields
+        self.start_date = start_date
+        self.end_date = end_date
+        self.total_refills = total_refills
+        self.total_amount = total_amount
+        self.save()
+
+        return refills
+    
+# class CloseOfDay(models.Model):
+#     closed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+#     start_date = models.DateTimeField()
+#     end_date = models.DateTimeField(default=timezone.now)
+#     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+#     total_refills = models.PositiveIntegerField(default=0)
+#     total_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+#     created_at = models.DateTimeField(auto_now_add=True)
+
+#     def __str__(self):
+#         return f"CloseOfDay ({self.start_date.date()} → {self.end_date.date()})"
+
+
+# class CloseOfDayOTP(models.Model):
+#     user = models.CharField(max_length=90, null=True)
+#     code = models.CharField(max_length=6)
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     is_used = models.BooleanField(default=False)
+
+#     def is_valid(self):
+#         return (
+#             not self.is_used
+#             and timezone.now() <= self.created_at + timedelta(minutes=5)
+#         )
+
+#     def __str__(self):
+#         return f"OTP for {self.user.username} ({self.code})"
 
 
 class TimeStamped(models.Model):
@@ -227,6 +283,7 @@ class Refill(TimeStamped):
     qrcode = models.TextField(null=True)
     site_id = models.CharField(max_length=90, null=True)
     phone = models.CharField(max_length=90, null=True)
+    
 
 class Sale(TimeStamped):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='sales')
@@ -264,6 +321,7 @@ class GRN(models.Model):
     made_date = models.DateTimeField(default=datetime.now, blank=True)
     status = models.CharField(default=0, null=False, max_length=3)
     qr_code = models.ImageField(upload_to='qr/grn/', blank=True)
+    # assigned_site = models.CharField(max_length=90, null=True)
     rec_by = models.CharField(max_length=90, null=True)
     assigned_site = models.ForeignKey(
         'Container', on_delete=models.SET_NULL, null=True, blank=True

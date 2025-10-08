@@ -1,0 +1,13 @@
+<h2>Close of Day Successful</h2>
+
+{% if closure %}
+<p><strong>Closed By:</strong> {{ closure.closed_by }}</p>
+<p><strong>Period:</strong> {{ closure.start_date }} → {{ closure.end_date }}</p>
+<p><strong>Total Refills:</strong> {{ closure.total_refills }}</p>
+<p><strong>Total Quantity:</strong> {{ closure.total_quantity }} kg</p>
+<p><strong>Total Amount:</strong> {{ closure.total_amount }}</p>
+{% else %}
+<p>No closure record found.</p>
+{% endif %}
+
+<a href="{% url 'core:close_day_request' %}">Back to Close Day</a>

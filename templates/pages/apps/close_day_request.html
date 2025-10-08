@@ -1,0 +1,16 @@
+<h2>Close of Day (Refill Summary)</h2>
+
+<p><strong>From:</strong> {{ data.start_date }}</p>
+<p><strong>To:</strong> {{ data.end_date }}</p>
+<p><strong>Total Refills:</strong> {{ data.total_refills }}</p>
+<p><strong>Total Quantity (kg):</strong> {{ data.total_quantity }}</p>
+<p><strong>Total Revenue:</strong> {{ data.total_amount }}</p>
+
+<p>An OTP has been generated and printed in the console.</p>
+
+<form method="post" action="{% url 'core:close_day_verify' %}">
+  {% csrf_token %}
+  <label for="otp">Enter OTP:</label>
+  <input type="text" name="otp" required />
+  <button type="submit">Confirm Closure</button>
+</form>
