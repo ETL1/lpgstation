@@ -226,7 +226,7 @@ class Product(TimeStamped):
 
         # Sum of all quantities of this product in GRNItems
         total_grn_quantity = (
-            GRNItems.objects.filter(item_id=self)  # assuming ForeignKey to Product
+            GRNItems.objects.filter(item_id=self.id)  # assuming ForeignKey to Product
             .aggregate(total=Sum('quantity'))
             .get('total') or 0
         )
@@ -240,7 +240,7 @@ class Product(TimeStamped):
         elif remaining >= 1:
             return ("badge-light-danger", "Out of Stock")
         else:
-            return ("badge-light-dark", "---")
+            return ("badge-light-danger", "Out of Stock")
 
     
     def remaining_stock(self):
@@ -248,7 +248,7 @@ class Product(TimeStamped):
 
         # Sum of all quantities of this product in GRNItems
         total_grn_quantity = (
-            GRNItems.objects.filter(item_id=self)  # assuming ForeignKey to Product
+            GRNItems.objects.filter(item_id=self.id)  # assuming ForeignKey to Product
             .aggregate(total=Sum('quantity'))
             .get('total') or 0
         )
