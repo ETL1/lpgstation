@@ -165,7 +165,7 @@ class Cylinder(TimeStamped):
         elif _vr >= 1.50:
             return ("badge-light-danger", "Out of Stock")
         else:
-            return ("badge-light-dark", "---")
+            return ("badge-light-danger", "Out of Stock")
     
     def remaining_quantity(self):
         from core.models import Refill  # avoid circular import
