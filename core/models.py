@@ -110,6 +110,7 @@ class Item(TimeStamped):
     def __str__(self):
         return f"{self.name} {self.size_kg}kg"
 
+
 class Customer(TimeStamped):
     name = models.CharField(max_length=120)
     phone = models.CharField(max_length=32)
@@ -206,7 +207,7 @@ class OrderItem(TimeStamped):
     unit_price = models.DecimalField(max_digits=9, decimal_places=2)
 
 class Product(TimeStamped):
-    item_id = models.CharField(max_length=90, default=gen64Id, null=False)
+    item_id = models.CharField(max_length=90, default=uuid.uuid4, null=False)
     name = models.CharField(max_length=120, unique=True)
     sku = models.TextField(max_length=90, null=True)
     more_info = models.TextField(null=True)
