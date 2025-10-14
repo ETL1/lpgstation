@@ -104,7 +104,7 @@ class TimeStamped(models.Model):
 class Item(TimeStamped):
     name = models.CharField(max_length=120)
     item_type = models.CharField(max_length=120, default=0)
-    size_kg = models.PositiveIntegerField(choices=[(3,'3kg'),(5,'5kg'),(10,'10kg'),(14,'14kg'),(20,'20kg'),(25,'25kg'),(30,'30kg'),(40,'40kg'),(45,'45kg'),(48,'48kg'),(50,'50kg'),(60,'60kg')])
+    size_kg = models.PositiveIntegerField(choices=[(3,'3kg'),(5,'5kg'),(10,'10kg'),(14,'14kg'),(20,'20kg'),(25,'25kg'),(30,'30kg'),(35,'35kg'),(38,'38kg')(40,'40kg'),(45,'45kg'),(48,'48kg'),(50,'50kg'),(60,'60kg')])
     base_price = models.DecimalField(max_digits=9, decimal_places=2)
     active = models.BooleanField(default=True)
     def __str__(self):
