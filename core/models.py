@@ -431,7 +431,7 @@ class GRNItems(models.Model):
     site_comment = models.TextField(null=True)
 
     def __str__(self):
-        return f"{self.product or self.item} - ({self.grn})"
+        return f"{self.product or self.item}"
 
 
 
