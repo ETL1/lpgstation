@@ -593,22 +593,219 @@ class ProductEdit(LoginRequiredMixin, UpdateView):
         resp = super().form_valid(form)
         return resp
 
+# @login_required
+# @csrf_exempt
+# def add_products(request):
+#     if request.method == 'POST':
+#         name = request.POST.get('name')
+#         unit_price = request.POST.get('unit_price')
+#         stock = request.POST.get('stock')
+#         more_info = request.POST.get('more_info')
+#         handler = CustomUser.objects.get(uid=request.user.uid)
+#         sku = generate_unique_sku()
+#         push_product = Product.objects.create(handled_by=handler, sku=sku, name=name, unit_price=unit_price, more_info=more_info, stock=stock)
+#         push_product.save()
+#         messages.success(request, 'Product added successfully.')
+#         return redirect('/products')
+#     messages.error(request, 'There was an error. Please try again')
+#     return redirect('/products')   
 @login_required
 @csrf_exempt
 def add_products(request):
     if request.method == 'POST':
-        name = request.POST.get('name')
-        unit_price = request.POST.get('unit_price')
-        stock = request.POST.get('stock')
-        more_info = request.POST.get('more_info')
-        handler = CustomUser.objects.get(uid=request.user.uid)
-        sku = generate_unique_sku()
-        push_product = Product.objects.create(handled_by=handler, sku=sku, name=name, unit_price=unit_price, more_info=more_info, stock=stock)
-        push_product.save()
-        messages.success(request, 'Product added successfully.')
-        return redirect('/products')
-    messages.error(request, 'There was an error. Please try again')
-    return redirect('/products')   
+        try:
+            name = request.POST.get('name')
+            unit_price = request.POST.get('unit_price')
+            stock = int(request.POST.get('stock', 0))
+            more_info = request.POST.get('more_info')
+
+            if not all([name, unit_price]) or stock <= 0:
+                messages.error(request, 'Please fill in all required fields.')
+                return redirect('/products')
+
+            handler = CustomUser.objects.get(uid=request.user.uid)
+            sku = generate_unique_sku()
+
+            # Create product
+            product = Product.objects.create(
+                handled_by=handler,
+                sku=sku,
+                name=name,
+                unit_price=unit_price,
+                more_info=more_info,
+                stock=stock
+            )
+
+            # ✅ Generate multiple QR codes (one per unit in stock)
+            # for i in range(stock):
+            # Generate QR Code
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_H,
+                box_size=10,
+                border=4
+            )
+            qr.add_data(f'{product.item_id}')
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+
+            # Save QR code using Django’s upload_to logic
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG')
+            product.qr_code.save(f'{product.item_id}.png', ContentFile(buffer.getvalue()), save=True)
+
+                # ProductQR.objects.create(
+                #     product=product,
+                #     qr_code=ContentFile(buffer.getvalue())
+                # )
+
+            messages.success(request, f'Product "{product.name}" added successfully with {stock} QR codes.')
+            return redirect('/products')
+
+        except Exception as e:
+            messages.error(request, f'Error adding product: {e}')
+            return redirect('/products')
+
+    messages.error(request, 'Invalid request method.')
+    return redirect('/products')
+
+
+@login_required
+# @csrf_exempt
+def add_bulk_product(request):
+    if request.method == 'POST':
+        try:
+            item_id = request.POST.get('name')
+            qty = int(request.POST.get('qty', 0))
+            item = get_object_or_404(Product, item_id=item_id)
+            
+
+            qr_data_list = []
+
+            for i in range(qty):
+                unique_code = f"{item.item_id}"
+                
+
+                # === QR code with Pillow for text ===
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_H,
+                    box_size=10,
+                    border=4
+                )
+                qr.add_data(unique_code)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+
+                buffer = io.BytesIO()
+                img.save(buffer, format='PNG')
+                item.qr_code.save(f'{unique_code}.png', ContentFile(buffer.getvalue()), save=False)
+
+                # Keep for PDF
+                qr_data_list.append((buffer.getvalue(), unique_code, item.name))
+
+            # === Generate PDF ===
+            page_w, page_h = 75 * mm, 65 * mm
+            qr_size = 50 * mm
+            margin_top = 5 * mm
+
+            pdf_buffer = io.BytesIO()
+            c = canvas.Canvas(pdf_buffer, pagesize=(page_w, page_h))
+            for img_bytes, unique_code, cyl_size in qr_data_list:
+                img_buffer = io.BytesIO(img_bytes)
+                img_reader = ImageReader(img_buffer)
+
+                x = (page_w - qr_size) / 2
+                y = (page_h - qr_size) / 2
+                
+                px = (page_w - qr_size) / 1.4
+                py = page_h - qr_size - margin_top
+
+                c.drawImage(img_reader, px, py, width=qr_size, height=qr_size)
+                c.saveState()
+                # Move origin to center of page
+                c.translate(x, y)
+                # Rotate 90 degrees clockwise
+                c.rotate(90)
+                # After rotation, (0,0) is now the center
+                
+                # Generate unique 8-digit code
+                unique_num = str(uuid.uuid4().hex[:8].upper())
+
+                # Text in PDF below QR
+                c.setFont("Helvetica-Bold", 12)
+                c.drawCentredString(page_w / 2.8, -15, f"ID: {item.sku}")
+                c.setFont("Helvetica", 10)
+                c.drawCentredString(page_w / 2.8, 1, f"{cyl_size}")
+
+                c.showPage()
+
+            c.save()
+            pdf_buffer.seek(0)
+
+            filename = f"products_{datetime.now().strftime('%Y-%m-%d')}.pdf"
+            return FileResponse(pdf_buffer, as_attachment=True, filename=filename)
+        
+        except Exception as e:
+            messages.error(request, f'Error adding product: {e}')
+            print(f'Error adding product: {e}')
+            return redirect('/products')
+    return redirect('/products')
+
+
+
+@login_required
+@csrf_exempt
+def add_measurable_products(request):
+    if request.method == 'POST':
+        try:
+            name = request.POST.get('name')
+            unit_price = request.POST.get('unit_price')
+            stock = request.POST.get('stock')
+            more_info = request.POST.get('more_info')
+
+            if not all([name, unit_price, stock]):
+                messages.error(request, 'Please fill in all required fields.')
+                return redirect('/products')
+
+            handler = CustomUser.objects.get(uid=request.user.uid)
+            sku = generate_unique_sku()
+
+            product = Product.objects.create(
+                handled_by=handler,
+                sku=sku,
+                name=name,
+                unit_price=unit_price,
+                more_info=more_info,
+                stock=stock
+            )
+
+            # ✅ Generate QR Code for product
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_H,
+                box_size=10,
+                border=4
+            )
+            qr.add_data(product.item_id)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color="black", back_color="white")
+
+            # Save QR code image to Product field
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG')
+            product.qr_code.save(f'{product.item_id}.png', ContentFile(buffer.getvalue()), save=True)
+
+            messages.success(request, f'Product "{product.name}" added successfully.')
+            return redirect('/products')
+
+        except Exception as e:
+            messages.error(request, f'Error adding product: {e}')
+            return redirect('/products')
+
+    messages.error(request, 'Invalid request method.')
+    return redirect('/products')
     
     
 @api_view(['GET', ])

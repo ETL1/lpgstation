@@ -25,6 +25,10 @@ BASE_PRICE_PER_KG = 47.00  # fixed base price
 def generate_otp():
     return str(random.randint(100000, 999999))
 
+def product_qr_upload_path(instance, filename):
+    # Folder: qr/products/<SKU>/<filename>
+    return f'qr/products/{instance.sku}/{filename}'
+
 class CloseOfDay(models.Model):
     otp = models.CharField(max_length=6, null=True, blank=True)
     requested_by = models.CharField(max_length=90, null=True)
@@ -206,6 +210,7 @@ class OrderItem(TimeStamped):
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=9, decimal_places=2)
 
+
 class Product(TimeStamped):
     item_id = models.CharField(max_length=90, default=uuid.uuid4, null=False)
     name = models.CharField(max_length=120, unique=True)
@@ -216,7 +221,7 @@ class Product(TimeStamped):
     item_pic = models.ImageField(upload_to='items/', blank=True)
     handled_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='item_added')
     status = models.CharField(default=0, null=False, max_length=3)
-    qr_code = models.ImageField(upload_to='qr/products/', blank=True)
+    qr_code = models.ImageField(upload_to=product_qr_upload_path, blank=True)
     active = models.BooleanField(default=True)
     
     def __str__(self):
@@ -256,7 +261,89 @@ class Product(TimeStamped):
 
         remaining = (self.stock or 0) - total_grn_quantity
         return remaining
+
+
+class ProductQR(TimeStamped):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='products')
+    qr_code = models.ImageField(upload_to=product_qr_upload_path, blank=True)
+    location = models.CharField(max_length=120, blank=True)
+
+    def __str__(self):
+        return f"Product {self.id} ({self.product})" 
+
+
+class Measurables(TimeStamped):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    qr_code = models.ImageField(upload_to=product_qr_upload_path, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('full','Full'),
+            ('empty','Empty'),
+            ('in_use','In-Use'),
+            ('with_customer','With Customer'),
+            ('maintenance','Maintenance'),
+            ('retired','Retired')
+        ],
+        default='full'
+    )
+    quantity_mtrs = models.FloatField(null=True)  # capacity
+    assigned_state = models.CharField(max_length=3, default=0)
+    sku = models.CharField(max_length=30, default=generate_cylinder_sku, null=False)
+    location = models.CharField(max_length=120, blank=True)
+
+    def __str__(self):
+        return f"Consumable {self.id} ({self.quantity_mtrs})"
+
+    def get_absolute_url(self):
+        return reverse('core:cylinder-detail', args=[str(self.id)])
+
+    def lpg_level_status(self):
+        from core.models import ConsumerSales  # avoid circular import
+
+        # Sum of all quantities of this product in GRNItems
+        total_sold = (
+            ConsumerSales.objects.filter(qrcode=self.id)
+            .aggregate(total=Sum('quantity_mtrs'))
+            .get('total') or Decimal("0.00")
+        )
+
+        remaining = Decimal(str(self.quantity_mtrs or 0)) - (total_sold or Decimal("0"))
+        _vr = remaining.quantize(Decimal("0.01"))
+        
+        if _vr >= 5.00:
+            return ("badge-light-success", "Stocked")
+        elif _vr >= 3.00:
+            return ("badge-light-warning", "Low Stock")
+        elif _vr >= 0.30:
+            return ("badge-light-danger", "Out of Stock")
+        else:
+            return ("badge-light-danger", "Out of Stock")
     
+    def remaining_quantity(self):
+        from core.models import ConsumerSales  # avoid circular import
+
+        total_sold = (
+            ConsumerSales.objects.filter(qrcode=self.id)
+            .aggregate(total=Sum('quantity_kg'))
+            .get('total') or Decimal("0.00")
+        )
+        remaining = Decimal(str(self.quantity_mtrs or 0)) - (total_sold or Decimal("0.00"))
+        # return (self.quantity_kg or Decimal("0.00")) - total_refilled
+        return remaining.quantize(Decimal("0.01"))
+
+class ConsumerSales(TimeStamped):
+    measurable = models.ForeignKey(Measurables, on_delete=models.CASCADE, related_name='measurables', null=True)
+    quantity_mtrs =  models.DecimalField(max_digits=10, decimal_places=2, default=0, null=False)
+    unit_price_per_mtr = models.DecimalField(max_digits=8, decimal_places=2, null=True)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, null=True)
+    handled_by = models.CharField(max_length=90, null=True)
+    sale_id = models.CharField(max_length=90, default=gen64Id, null=False)
+    qrcode = models.TextField(null=True)
+    site_id = models.CharField(max_length=90, null=True)
+
+
     
 class Container(TimeStamped):
     name = models.CharField(max_length=120, unique=False)

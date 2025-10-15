@@ -32,6 +32,8 @@ urlpatterns = [
     
     path('products/', views.products_list, name='products-list'),
     path('products/new/', views.add_products, name='products-create'),
+    path('products/qr-gen/', views.add_bulk_product, name='products-qr-create'),
+    path('products/new/measurable', views.add_measurable_products, name='products-create'),
     path('products/<uuid:pk>/', views.ProductDetail.as_view(), name='products-detail'),
     path('products/<uuid:pk>/edit/', views.ProductEdit.as_view(), name='products-edit'),
     
