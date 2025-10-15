@@ -213,20 +213,20 @@
                                                 <!--begin::Title-->
                                                 <div class="ms-0">
                                                     {% comment %} <div class="fw-bold">{% get_item_name x.item_id %}</div> {% endcomment %}
-                                                    <div class="fw-bold text-wrap">{{x.item_id.name}}</div>
+                                                    <div class="fw-bold text-wrap">{{x}}</div>
                                                     <div class="fs-7 text-muted">{{ x.admin_comment }}</div>
                                                 </div>
                                                 <!--end::Title-->
                                             </div>
                                         </td>
                                         <td class="text-end">
-                                            {{x.item_id.sku}}
+                                            {{x.product.sku}}
                                             {% comment %} {% get_sku x.item_id %}                                      </td> {% endcomment %}
                                         <td class="text-end">
                                             {{ x.quantity }}
                                         </td>
                                         <td class="text-end">
-                                            {{x.item_id.unit_price}}
+                                            {{x.product.unit_price}}
                                             {% comment %} K {% get_unit_price x.item_id %} {% endcomment %}
                                         </td>
                                     </tr>
