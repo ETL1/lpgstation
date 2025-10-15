@@ -69,7 +69,34 @@ class CloseOfDay(models.Model):
         self.save()
 
         return refills
+    
+# class CloseOfDay(models.Model):
+#     closed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+#     start_date = models.DateTimeField()
+#     end_date = models.DateTimeField(default=timezone.now)
+#     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+#     total_refills = models.PositiveIntegerField(default=0)
+#     total_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+#     created_at = models.DateTimeField(auto_now_add=True)
 
+#     def __str__(self):
+#         return f"CloseOfDay ({self.start_date.date()} → {self.end_date.date()})"
+
+
+# class CloseOfDayOTP(models.Model):
+#     user = models.CharField(max_length=90, null=True)
+#     code = models.CharField(max_length=6)
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     is_used = models.BooleanField(default=False)
+
+#     def is_valid(self):
+#         return (
+#             not self.is_used
+#             and timezone.now() <= self.created_at + timedelta(minutes=5)
+#         )
+
+#     def __str__(self):
+#         return f"OTP for {self.user.username} ({self.code})"
 
 
 class TimeStamped(models.Model):
@@ -404,7 +431,7 @@ class GRNItems(models.Model):
     site_comment = models.TextField(null=True)
 
     def __str__(self):
-        return f"{self.product or self.item}"
+        return f"{self.product or self.item} - ({self.grn})"
 
 
 
