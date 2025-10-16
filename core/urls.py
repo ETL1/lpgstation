@@ -32,8 +32,11 @@ urlpatterns = [
     
     path('products/', views.products_list, name='products-list'),
     path('products/new/', views.add_products, name='products-create'),
+    path('item-sale/', views.sale_products, name='products-sale'),
+    path('pull-item/', views.myStockInfo, name='products-find'),
     path('products/qr-gen/', views.add_bulk_product, name='products-qr-create'),
     path('products/new/measurable', views.add_measurable_products, name='products-create'),
+    path('products/api/<uuid:id>/', views.productList, name='products-detail'),
     path('products/<uuid:pk>/', views.ProductDetail.as_view(), name='products-detail'),
     path('products/<uuid:pk>/edit/', views.ProductEdit.as_view(), name='products-edit'),
     
@@ -46,7 +49,8 @@ urlpatterns = [
     path('grn-accept/', views.myGRNaccept, name='accept-grn'),
     url(r'^edit-grn/(?P<pk>\w+)/$', views.edit_grn, name='edit-grn'),
     path('grn/save-edit/', views.submit_edit_grn, name='grn-edit-save'),
-    url(r'^delete-grn/(?P<pk>\w+)/$', views.delete_grn, name='delete-grn'),
+    # url(r'^delete-grn/(?P<pk>\w+)/$', views.delete_grn, name='delete-grn'),
+    path('delete-grn/<str:pk>/', views.delete_grn, name='delete-grn'),
     
     
     path('containers/', views.ContainerList.as_view(), name='container-list'),
@@ -60,5 +64,8 @@ urlpatterns = [
     
     path('close-request/', views.request_close_of_day, name='request_close_of_day'),
     path('close-verify/', views.verify_close_of_day, name='verify_close_of_day'),
+    
+    path('verify-admin-password/', views.verify_admin_password, name='verify_admin_password'),
+
     
 ]

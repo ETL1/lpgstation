@@ -1,12 +1,13 @@
 
 from datetime import datetime, timezone
 import json
+import os
 import uuid
 from django.utils import timezone
 
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from core import serializers
-from .models import CloseOfDay, generate_otp
+from .models import CloseOfDay, ContainerStock, ProductQR, generate_otp
 from decimal import Decimal
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView, ListView, DetailView, CreateView, UpdateView
@@ -15,7 +16,7 @@ from django.db.models import Sum
 from django.shortcuts import redirect, get_object_or_404, render
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from core.serializers import GRNItemSerializer, GRNSerializer, RefillSerializer, SalesSerializer
+from core.serializers import GRNItemSerializer, GRNSerializer, ProductsSerializer, RefillSerializer, SalesSerializer
 from login.models import CustomUser
 from login.serializers import ActivaSerializer
 from lpg_station.functions import generate_sku
@@ -26,10 +27,20 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_api_key.permissions import HasAPIKey
 from rest_framework_api_key.models import APIKey
+from django.db.models import Q
 import io
 import qrcode
 from django.core.files.base import ContentFile
 from django.views.decorators.csrf import csrf_exempt
+from datetime import datetime
+from django.core.files.base import ContentFile
+from django.http import FileResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+from PIL import ImageDraw, ImageFont
+from django.db import transaction
+from itertools import zip_longest
 
 from templatetags.custom_tags import generate_unique_sku
 
@@ -103,19 +114,6 @@ class CylinderCreate(LoginRequiredMixin, CreateView):
         return resp
     
 
-
-import io
-import qrcode
-import random
-from datetime import datetime
-from django.core.files.base import ContentFile
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect
-from django.http import FileResponse
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import mm
-from reportlab.lib.utils import ImageReader
-from PIL import ImageDraw, ImageFont
 
 
 
@@ -333,15 +331,16 @@ class ContainerList(LoginRequiredMixin, ListView):
 
 class ContainerDetail(LoginRequiredMixin, DetailView):
     model = Container
+    ordering = ['-created_at']
     template_name = 'core/container_detail.html'
 
 @login_required
 def container_view(request, pk):
     conts = Container.objects.filter(site_id=pk)
     site_id = Container.objects.get(site_id=pk)
-    refills = Refill.objects.filter(site_id=site_id.id)
+    refills = Refill.objects.filter(site_id=site_id.id).order_by('-created_at')
     refill_count = Refill.objects.filter(site_id=site_id.id).count()
-    cylinders = Cylinder.objects.filter(location=site_id.id)
+    cylinders = Cylinder.objects.filter(location=site_id.id).order_by('-created_at')
     cylinder_count = Cylinder.objects.filter(location=site_id.id).count()
     
     from django.db.models import F, Sum, DecimalField, ExpressionWrapper
@@ -406,7 +405,7 @@ class ContainerEdit(LoginRequiredMixin, UpdateView):
     
 @login_required
 def distribution_list(request):
-    _grn = GRN.objects.filter(status=0).order_by('-made_date')
+    _grn = GRN.objects.filter(Q(status=0) | Q(status=1)).order_by('-made_date')
     _grnItems = GRNItems.objects.all()
     items = Product.objects.all()
     
@@ -446,14 +445,83 @@ def create_grn(request):
     _grnItems = GRNItems.objects.all()
     items = Product.objects.all()
     cyls = Item.objects.all()
+    containers = Container.objects.all()
     
     context = {
         'grn' : _grn,
         'grnitems' : _grnItems,
         'items' : items,
         'cyls' : cyls,
+        'containers' : containers,
     }
     return render(request, 'pages/apps/create-grn.html', context)
+
+# @csrf_exempt
+# @login_required
+# def make_grn(request):
+#     if request.method == 'POST':
+#         items = request.POST.getlist('item')
+#         quantities = request.POST.getlist('quantity')
+#         comments = request.POST.getlist('comments')
+#         site_id = request.POST.get('site_id')
+#         # create GRN first
+#         push_grn = GRN.objects.create(initia=request.user.uid)
+        
+
+#         from itertools import zip_longest
+#         for itm, qty, comm in zip_longest(items, quantities, comments, fillvalue=None):
+#             if itm and qty:
+#                 try:
+#                     itmx = Item.objects.get(id=itm)
+#                     GRNItems.objects.create(
+#                     grn=push_grn,
+#                     item=itmx,
+#                     quantity=qty,
+#                     admin_comment=comm
+#                 )
+#                 except:
+#                     itmx = Product.objects.get(item_id=itm)
+#                     bkstock = itmx.stock
+#                     cont = Container.objects.get(site_id=site_id)
+#                     if int(qty) <= int(itmx.stock):
+#                         GRNItems.objects.create(
+#                             grn=push_grn,
+#                             product=itmx,
+#                             quantity=qty,
+#                             admin_comment=comm
+#                         )
+#                         ContainerStock.objects.create(
+#                             container=cont,
+#                             product=itmx,
+#                             stock=qty
+#                         )
+#                         itmx.stock = int(itmx.stock)-int(qty)
+#                         itmx.save()
+#                     else:
+#                         itmx.stock = bkstock
+#                         itmx.save()
+#                         push_grn.delete()
+#                         messages.error(request,'You do not have enough stock left.')
+#                         pass
+        
+#         qr = qrcode.QRCode(
+#             version=1,
+#             error_correction=qrcode.constants.ERROR_CORRECT_H,
+#             box_size=10,
+#             border=4
+#         )
+#         qr.add_data(push_grn.grn_Id)
+#         qr.make(fit=True)
+#         img = qr.make_image(fill_color="black", back_color="white")
+
+#         # Save QR code image to Cylinder field
+#         buffer = io.BytesIO()
+#         img.save(buffer, format='PNG')
+#         push_grn.qr_code.save(f'{push_grn.grn_Id}.png', ContentFile(buffer.getvalue()), save=False)
+        
+#         return redirect('/grn')
+
+#     return redirect('/grn')
 
 @csrf_exempt
 @login_required
@@ -462,60 +530,141 @@ def make_grn(request):
         items = request.POST.getlist('item')
         quantities = request.POST.getlist('quantity')
         comments = request.POST.getlist('comments')
-        # create GRN first
-        push_grn = GRN.objects.create(initia=request.user.uid)
-        
+        site_id = request.POST.get('site_id')
 
-        from itertools import zip_longest
-        for itm, qty, comm in zip_longest(items, quantities, comments, fillvalue=None):
-            if itm and qty:
-                try:
-                    itmx = Item.objects.get(id=itm)
-                    GRNItems.objects.create(
-                    grn=push_grn,
-                    item=itmx,
-                    quantity=qty,
-                    admin_comment=comm
-                )
-                except:
-                    itmx = Product.objects.get(item_id=itm)
-                    GRNItems.objects.create(
-                        grn=push_grn,
-                        product=itmx,
-                        quantity=qty,
-                        admin_comment=comm
-                    )
-        
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_H,
-            box_size=10,
-            border=4
-        )
-        qr.add_data(push_grn.grn_Id)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
+        try:
+            # ✅ Start a transaction block
+            with transaction.atomic():
+                # Step 1: Create GRN record (no QR yet)
+                push_grn = GRN.objects.create(initia=request.user.uid)
 
-        # Save QR code image to Cylinder field
-        buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
-        push_grn.qr_code.save(f'{push_grn.grn_Id}.png', ContentFile(buffer.getvalue()), save=False)
-        
-        return redirect('/grn')
+                # Step 2: Track changes for rollback clarity
+                stock_changes = []
 
+                # Step 3: Process each GRN item
+                for itm, qty, comm in zip_longest(items, quantities, comments, fillvalue=None):
+                    if not itm or not qty:
+                        continue
+
+                    try:
+                        # Handle Items table
+                        itmx = Item.objects.get(id=itm)
+                        GRNItems.objects.create(
+                            grn=push_grn,
+                            item=itmx,
+                            quantity=qty,
+                            admin_comment=comm
+                        )
+
+                    except:
+                        # Handle Product table
+                        itmx = Product.objects.get(item_id=itm)
+                        cont = Container.objects.get(site_id=site_id)
+
+                        if int(qty) > int(itmx.stock):
+                            raise ValueError(f"Insufficient stock for {itmx.name} (available: {itmx.stock}, requested: {qty})")
+
+                        # Record stock for rollback clarity
+                        stock_changes.append((itmx, itmx.stock))
+
+                        # Deduct stock and record movement
+                        GRNItems.objects.create(
+                            grn=push_grn,
+                            product=itmx,
+                            quantity=qty,
+                            admin_comment=comm
+                        )
+                        
+                        from django.db.models import F
+
+                        obj, created = ContainerStock.objects.get_or_create(
+                            container=cont,
+                            product=itmx,
+                            defaults={'stock': qty}
+                        )
+
+                        if not created:
+                            ContainerStock.objects.filter(
+                                container=cont,
+                                product=itmx
+                            ).update(stock=F('stock') + qty)
+
+                        # ContainerStock.objects.create(
+                        #     container=cont,
+                        #     product=itmx,
+                        #     stock=qty
+                        # )
+
+                        itmx.stock = int(itmx.stock) - int(qty)
+                        itmx.save()
+
+                # ✅ Step 4: Commit happens here when block exits
+
+            # ✅ Step 5: Only generate and save QR *after* transaction success
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_H,
+                box_size=10,
+                border=4
+            )
+            qr.add_data(push_grn.grn_Id)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG')
+
+            # ✅ Convert UUID to string for folder name
+            qr_path = os.path.join(str(push_grn.grn_Id), f'{push_grn.grn_Id}.png')
+            push_grn.qr_code.save(f'{push_grn.grn_Id}.png', ContentFile(buffer.getvalue()), save=True)
+
+            messages.success(request, f'GRN #{push_grn.grn_number} was created successfully.')
+            return redirect('/grn')
+
+        except Exception as e:
+            messages.error(request, f"Transaction failed and was rolled back: {e}")
+            return redirect('/grn')
+
+    messages.error(request, 'Invalid request method.')
     return redirect('/grn')
 
+  
 @csrf_exempt
+@login_required
+@transaction.atomic
 def delete_grn(request, pk):
     try:
-        _grn = GRN.objects.filter(id=pk)
-        _grn.update(status=1)
-        messages.success(request,'GRN successfully deleted.')
+        # Get the GRN record
+        grn = get_object_or_404(GRN, id=pk)
+
+        # Only allow reversal if status == 0
+        if grn.status == 1 or grn.status == '1':
+            messages.error(request, "Cannot delete this GRN because it has already been finalized.")
+            return redirect('/grn')
+
+        with transaction.atomic():
+            # Get all GRNItems linked to this GRN
+            grn_items = GRNItems.objects.filter(grn=grn)
+
+            for item in grn_items:
+                if item.product:
+                    product = item.product
+                    # Restore stock to product model
+                    product.stock = int(product.stock) + int(item.quantity)
+                    product.save()
+
+            # Delete GRNItems and GRN itself
+            grn_items.delete()
+            grn.delete()
+
+        messages.success(request, f"GRN #{grn.grn_number} was deleted successfully and stock restored.")
         return redirect('/grn')
-    except:
-        messages.error(request,"GRN requested was not found.")
+
+    except Exception as e:
+        messages.error(request, f"Error deleting GRN: {e}")
         return redirect('/grn')
-  
+
+
 @login_required
 def edit_grn(request, pk):
     _grn = GRN.objects.filter(id=pk)
@@ -593,22 +742,7 @@ class ProductEdit(LoginRequiredMixin, UpdateView):
         resp = super().form_valid(form)
         return resp
 
-# @login_required
-# @csrf_exempt
-# def add_products(request):
-#     if request.method == 'POST':
-#         name = request.POST.get('name')
-#         unit_price = request.POST.get('unit_price')
-#         stock = request.POST.get('stock')
-#         more_info = request.POST.get('more_info')
-#         handler = CustomUser.objects.get(uid=request.user.uid)
-#         sku = generate_unique_sku()
-#         push_product = Product.objects.create(handled_by=handler, sku=sku, name=name, unit_price=unit_price, more_info=more_info, stock=stock)
-#         push_product.save()
-#         messages.success(request, 'Product added successfully.')
-#         return redirect('/products')
-#     messages.error(request, 'There was an error. Please try again')
-#     return redirect('/products')   
+
 @login_required
 @csrf_exempt
 def add_products(request):
@@ -668,6 +802,87 @@ def add_products(request):
 
     messages.error(request, 'Invalid request method.')
     return redirect('/products')
+
+
+@api_view(['GET', ])
+@permission_classes([AllowAny])
+def productList(request, id):
+    try:
+        info_data = Product.objects.get(item_id=id)
+    except Product.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    if request.method == "GET":
+        serializer = ProductsSerializer(info_data)
+        return Response(serializer.data)
+    else:
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def myStockInfo(request):
+    if request.method != "POST":
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    data = JSONParser().parse(request)
+    qr_code_str = data.get('qr_code')
+    uid = data.get('uid')
+    
+    try:
+        user = CustomUser.objects.get(uid=uid)
+        product = ContainerStock.objects.get(product__item_id__icontains=qr_code_str,container__site_id__icontains=user.site_id.site_id)
+    except:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    return Response({
+            "name": product.product.name,
+            "sku": product.product.sku,
+            "more_info": product.product.more_info,
+            "unit_price": product.product.unit_price,
+            "stock": product.stock
+        }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def sale_products(request):
+    if request.method != "POST":
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    data = JSONParser().parse(request)
+    qr_code_str = data.get('qr_code')
+    uid = data.get('uid')
+    quantity = data.get('quantity')
+    
+    if not qr_code_str or not uid:
+        return Response({'error': 'Missing qr_code or uid'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = CustomUser.objects.get(uid=uid)
+    except CustomUser.DoesNotExist:
+        print(f"'error': 'User not found 2'")
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        item = ContainerStock.objects.get(product__item_id__icontains=qr_code_str,container__site_id__icontains=user.site_id.site_id)
+    except ContainerStock.DoesNotExist:
+        return Response({'response': 'Transaction was not successful',
+        'resMssg': 1}, status=status.HTTP_404_NOT_FOUND)
+
+
+    # Assign user and site
+    clean_value = int(float(quantity))
+    if  int(float(item.stock)) < clean_value:
+        return Response({'response': 'Transaction was not successful',
+        'resMssg': 1}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        item.stock = int(item.stock) - clean_value
+        item.save()
+
+    return Response({
+        'response': 'Transaction was successful',
+        'resMssg': 1
+    }, status=status.HTTP_200_OK)
 
 
 @login_required
@@ -806,6 +1021,40 @@ def add_measurable_products(request):
 
     messages.error(request, 'Invalid request method.')
     return redirect('/products')
+
+# @login_required
+# @csrf_exempt
+# def add_products(request):
+#     if request.method == 'POST':
+#         name = request.POST.get('name')
+#         unit_price = request.POST.get('unit_price')
+#         stock = request.POST.get('stock')
+#         more_info = request.POST.get('more_info')
+#         handler = CustomUser.objects.get(uid=request.user.uid)
+#         sku = generate_unique_sku()
+#         push_product = Product.objects.create(handled_by=handler, sku=sku, name=name, unit_price=unit_price, more_info=more_info, stock=stock)
+#         push_product.save()
+        
+#         qr = qrcode.QRCode(
+#             version=1,
+#             error_correction=qrcode.constants.ERROR_CORRECT_H,
+#             box_size=10,
+#             border=4
+#         )
+#         print(push_product.item_id)
+#         qr.add_data(push_product.item_id)
+#         qr.make(fit=True)
+#         img = qr.make_image(fill_color="black", back_color="white")
+
+#         # Save QR code image to Product field
+#         buffer = io.BytesIO()
+#         img.save(buffer, format='PNG')
+#         push_product.qr_code.save(f'{push_product.item_id}.png', ContentFile(buffer.getvalue()), save=False)
+        
+#         messages.success(request, 'Product added successfully.')
+#         return redirect('/products')
+#     messages.error(request, 'There was an error. Please try again')
+#     return redirect('/products')   
     
     
 @api_view(['GET', ])
@@ -943,15 +1192,15 @@ def myGRNaccept(request):
     data = JSONParser().parse(request)
     qr_code_str = data.get('qr_code')
     uid = data.get('uid')
-
+    
     if not qr_code_str or not uid:
         return Response({'error': 'Missing qr_code or uid'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        grn = GRN.objects.get(grn_Id__icontains=qr_code_str)  # search by filename
+        grn = GRN.objects.get(grn_Id__icontains=qr_code_str, status=0)  # search by filename
     except GRN.DoesNotExist:
-        print(f"'error': 'User not found 1'")
-        return Response({'error': 'GRN not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'response': 'Transaction was successful',
+        'resMssg': 1}, status=status.HTTP_404_NOT_FOUND)
 
     try:
         user = CustomUser.objects.get(uid=uid)
@@ -963,12 +1212,14 @@ def myGRNaccept(request):
     # Assign user and site
     grn.rec_by = user.uid
     grn.assigned_site = user.site_id
+    grn.status = 1
     grn.save()
 
     return Response({
         'response': 'Transaction was successful',
         'resMssg': 1
     }, status=status.HTTP_201_CREATED)
+
 
 
 
@@ -995,112 +1246,6 @@ def make_token(request):
 
 
 
-# @login_required
-# def close_day_request(request):
-#     """Step 1: Generate OTP and show refill totals"""
-#     data = calculate_refill_totals()
-#     generate_otp(request.user)
-#     messages.info(
-#         request,
-#         "An OTP has been generated. Check the console output to view the code.",
-#     )
-#     return render(request, "pages/apps/close_day_request.html", {"data": data})
-
-
-# @login_required
-# def close_day_verify(request):
-#     """Step 2: Verify OTP and close day"""
-#     if request.method == "POST":
-#         code = request.POST.get("otp")
-
-#         try:
-#             otp_obj = CloseOfDayOTP.objects.filter(
-#                 user=request.user, code=code
-#             ).latest("created_at")
-#         except CloseOfDayOTP.DoesNotExist:
-#             messages.error(request, "Invalid OTP.")
-#             return redirect("core:close_day_request")
-
-#         if not otp_obj.is_valid():
-#             messages.error(request, "OTP expired or already used.")
-#             return redirect("core:close_day_request")
-
-#         otp_obj.is_used = True
-#         otp_obj.save()
-
-#         data = calculate_refill_totals()
-#         CloseOfDay.objects.create(
-#             closed_by=request.user,
-#             start_date=data["start_date"],
-#             end_date=data["end_date"],
-#             total_amount=data["total_amount"],
-#             total_refills=data["total_refills"],
-#             total_quantity=data["total_quantity"],
-#         )
-
-#         messages.success(
-#             request,
-#             f"Day closed successfully. Total Refills: {data['total_refills']} | Quantity: {data['total_quantity']} kg | Amount: {data['total_amount']}",
-#         )
-#         return redirect("core:close_day_success")
-
-#     return redirect("core:close_day_request")
-
-
-# @login_required
-# def close_day_success(request):
-#     """Confirmation page"""
-#     latest = CloseOfDay.objects.order_by("-created_at").first()
-#     return render(request, "pages/apps/close_day_success.html", {"closure": latest})
-
-# @csrf_exempt
-# def request_close_of_day(request):
-#     """Initiate a new close-of-day request and generate OTP."""
-#     if request.method == "POST":
-#         data = json.loads(request.body)
-#         requested_by = data.get("requested_by")
-
-#         close = CloseOfDay.objects.create(
-#             requested_by=requested_by,
-#             otp=generate_otp()
-#         )
-
-#         close.calculate_totals()
-
-#         return JsonResponse({
-#             "message": "Close of Day OTP generated.",
-#             "otp": close.otp,  # for now, return it directly
-#             "totals": {
-#                 "refills": close.total_refills,
-#                 "amount": str(close.total_amount)
-#             }
-#         })
-
-# @csrf_exempt
-# def verify_close_of_day(request):
-#     """Verify OTP and approve closure."""
-#     if request.method == "POST":
-#         data = json.loads(request.body)
-#         otp = data.get("otp")
-#         approved_by = data.get("approved_by")
-
-#         try:
-#             close = CloseOfDay.objects.get(otp=otp, otp_verified=False)
-#             close.otp_verified = True
-#             close.approved_by = approved_by
-#             close.save()
-
-#             return JsonResponse({
-#                 "message": "Close of Day approved successfully.",
-#                 "from": close.start_date,
-#                 "to": close.end_date,
-#                 "total_refills": close.total_refills,
-#                 "total_amount": str(close.total_amount)
-#             })
-
-#         except CloseOfDay.DoesNotExist:
-#             return JsonResponse({"error": "Invalid or already used OTP."}, status=400)
-
 @csrf_exempt
 def request_close_of_day(request):
     """Initiate a new close-of-day request and generate OTP."""
@@ -1113,13 +1258,15 @@ def request_close_of_day(request):
             data = request.POST
 
         requested_by = data.get("requested_by")
+        usr = CustomUser.objects.get(uid=requested_by)
 
         if not requested_by:
             return JsonResponse({"error": "requested_by is required"}, status=400)
 
         close = CloseOfDay.objects.create(
             requested_by=requested_by,
-            otp=generate_otp()
+            otp=generate_otp(),
+            site_id=usr.site_id.site_id
         )
 
         close.calculate_totals()
@@ -1150,11 +1297,14 @@ def verify_close_of_day(request):
 
         if not otp or not approved_by:
             return JsonResponse({"error": "otp and approved_by are required"}, status=400)
-
+        
+        usr = CustomUser.objects.get(uid=approved_by)
+        
         try:
-            close = CloseOfDay.objects.get(otp=otp, otp_verified=False)
+            close = CloseOfDay.objects.get(otp=otp, otp_verified=False, requested_by=approved_by)
             close.otp_verified = True
             close.approved_by = approved_by
+            close.site_id = usr.site_id.site_id
             close.total_amount = str(close.total_amount)
             close.total_refills = close.total_refills
             close.save()
@@ -1171,3 +1321,26 @@ def verify_close_of_day(request):
             return JsonResponse({"error": "Invalid or already used OTP."}, status=400)
 
     return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+
+
+
+@csrf_exempt
+def verify_admin_password(request):
+    """
+    Verifies if the given password belongs to an admin user.
+    """
+    if request.method == 'POST':
+        password = request.POST.get('password', '')
+        username = request.POST.get('username', '')
+
+        # Get admin user (you can adapt this if multiple admins exist)
+        from django.contrib.auth import get_user_model
+        # User = get_user_model()
+        admin_user = CustomUser.objects.filter(access_level=0, username=username).first()
+
+        if admin_user and admin_user.check_password(password):
+            return JsonResponse({'success': True})
+        return JsonResponse({'success': False, 'error': 'Invalid admin password.'})
+    return JsonResponse({'error': 'Invalid request method.'}, status=400)

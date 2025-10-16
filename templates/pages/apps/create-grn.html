@@ -89,12 +89,21 @@
                 <!--begin::Input group-->
                 <div class="d-flex flex-center flex-equal fw-row text-nowrap order-1 order-xxl-2 me-4" data-bs-toggle="tooltip" data-bs-trigger="hover" title="Enter invoice number">
                     <span class="fs-2x fw-bold text-gray-800">GRN Generator</span> 
-                    {% comment %} <input type="text" class="form-control form-control-flush fw-bold text-muted fs-3 w-125px" value="2021001" placehoder="..."/> {% endcomment %}
                 </div>                
                 <!--end::Input group--> 
             </div>                
             <!--end::Top-->       
-
+                <br/>
+                <div class="row">
+                <div class="col-lg-4"></div>
+                <div class="col-lg-4">
+                    <select class="form-select form-select-solid mb-2" name="site_id" required aria-label="Select example" placeholder="Select Item">
+                        {% comment %} <option disabled selected>Select Container</option> {% endcomment %}
+                        {% for x in containers %}<option value="{{ x.site_id }}">{{ x.name }}</option>{% empty %}<option value="" disabled></option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-lg-4"></div>
+                </div>
             <!--begin::Separator-->
             <div class="separator separator-dashed my-10"></div>
             <!--end::Separator-->         
@@ -123,8 +132,9 @@
                                 <td class="pe-7">
                                     <select class="form-select form-select-solid mb-2" name="item" id="base" data-control="select2" data-placeholder="Select Item">
                                         <option></option>
-                                        {% for x in cyls %}<option value="{{ x.id }}">{{ x.name }} {{ x.size_kg }} Kg</option>{% empty %}<option value="" disabled></option>{% endfor %}
                                         {% for x in items %}<option value="{{ x.item_id }}">{{ x.name }}</option>{% empty %}<option value="" disabled>No Items</option>{% endfor %}
+                                        {% for x in cyls %}<option value="{{ x.id }}">{{ x.name }} {{ x.size_kg }} Kg</option>{% empty %}<option value="" disabled></option>{% endfor %}
+                                        
                                     </select>
                                           
                                 </td>
@@ -169,14 +179,15 @@
                         <td class="pe-7">                                            
                             <select class="form-select form-select-solid mb-2" name="item" aria-label="Select example" placeholder="Select Item">
                                 <option disabled selected>Select Item</option>
-                                {% for x in cyls %}<option value="{{ x.id }}">{{ x.name }} {{ x.size_kg }} Kg</option>{% empty %}<option value="" disabled></option>{% endfor %}
                                 {% for x in items %}<option value="{{ x.item_id }}">{{ x.name }}</option>{% empty %}<option value="">No Items</option>{% endfor %}
+                                {% for x in cyls %}<option value="{{ x.id }}">{{ x.name }} {{ x.size_kg }} Kg</option>{% empty %}<option value="" disabled></option>{% endfor %}
+                                
                             </select>
 
                         </td>
 
                         <td class="ps-0">                                            
-                            <input type="text" class="form-control form-control-solid" type="number" min="1" name="quantity" placeholder="1" data-kt-element="quantity"/>
+                            <input type="text" class="form-control form-control-solid" type="number" min="1" value="1" name="quantity" placeholder="1" data-kt-element="quantity"/>
                         </td>
 
                         <td class="pt-5 text-end text-nowrap">

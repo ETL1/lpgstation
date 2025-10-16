@@ -70,34 +70,6 @@ class CloseOfDay(models.Model):
 
         return refills
     
-# class CloseOfDay(models.Model):
-#     closed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-#     start_date = models.DateTimeField()
-#     end_date = models.DateTimeField(default=timezone.now)
-#     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-#     total_refills = models.PositiveIntegerField(default=0)
-#     total_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-#     created_at = models.DateTimeField(auto_now_add=True)
-
-#     def __str__(self):
-#         return f"CloseOfDay ({self.start_date.date()} → {self.end_date.date()})"
-
-
-# class CloseOfDayOTP(models.Model):
-#     user = models.CharField(max_length=90, null=True)
-#     code = models.CharField(max_length=6)
-#     created_at = models.DateTimeField(auto_now_add=True)
-#     is_used = models.BooleanField(default=False)
-
-#     def is_valid(self):
-#         return (
-#             not self.is_used
-#             and timezone.now() <= self.created_at + timedelta(minutes=5)
-#         )
-
-#     def __str__(self):
-#         return f"OTP for {self.user.username} ({self.code})"
-
 
 class TimeStamped(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -108,12 +80,11 @@ class TimeStamped(models.Model):
 class Item(TimeStamped):
     name = models.CharField(max_length=120)
     item_type = models.CharField(max_length=120, default=0)
-    size_kg = models.PositiveIntegerField(choices=[(3,'3kg'),(5,'5kg'),(10,'10kg'),(14,'14kg'),(20,'20kg'),(25,'25kg'),(30,'30kg'),(35,'35kg'),(38,'38kg'),(40,'40kg'),(45,'45kg'),(48,'48kg'),(50,'50kg'),(60,'60kg')])
+    size_kg = models.PositiveIntegerField(choices=[(3,'3kg'),(5,'5kg'),(10,'10kg'),(14,'14kg'),(20,'20kg'),(25,'25kg'),(30,'30kg'),(40,'40kg'),(45,'45kg'),(48,'48kg'),(50,'50kg'),(60,'60kg')])
     base_price = models.DecimalField(max_digits=9, decimal_places=2)
     active = models.BooleanField(default=True)
     def __str__(self):
         return f"{self.name} {self.size_kg}kg"
-
 
 class Customer(TimeStamped):
     name = models.CharField(max_length=120)
@@ -170,7 +141,7 @@ class Cylinder(TimeStamped):
         elif _vr >= 1.50:
             return ("badge-light-danger", "Out of Stock")
         else:
-            return ("badge-light-danger", "Out of Stock")
+            return ("badge-light-dark", "---")
     
     def remaining_quantity(self):
         from core.models import Refill  # avoid circular import
@@ -211,6 +182,7 @@ class OrderItem(TimeStamped):
     unit_price = models.DecimalField(max_digits=9, decimal_places=2)
 
 
+
 class Product(TimeStamped):
     item_id = models.CharField(max_length=90, default=uuid.uuid4, null=False)
     name = models.CharField(max_length=120, unique=True)
@@ -223,6 +195,7 @@ class Product(TimeStamped):
     status = models.CharField(default=0, null=False, max_length=3)
     qr_code = models.ImageField(upload_to=product_qr_upload_path, blank=True)
     active = models.BooleanField(default=True)
+    
     
     def __str__(self):
         return f"{self.name} ({self.sku})"
@@ -246,7 +219,7 @@ class Product(TimeStamped):
         elif remaining >= 1:
             return ("badge-light-danger", "Out of Stock")
         else:
-            return ("badge-light-danger", "Out of Stock")
+            return ("badge-light-dark", "---")
 
     
     def remaining_stock(self):
@@ -261,7 +234,6 @@ class Product(TimeStamped):
 
         remaining = (self.stock or 0) - total_grn_quantity
         return remaining
-
 
 class ProductQR(TimeStamped):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -343,7 +315,6 @@ class ConsumerSales(TimeStamped):
     qrcode = models.TextField(null=True)
     site_id = models.CharField(max_length=90, null=True)
 
-
     
 class Container(TimeStamped):
     name = models.CharField(max_length=120, unique=False)
@@ -358,6 +329,20 @@ class Container(TimeStamped):
     def __str__(self):
         return f"{self.name} ({self.location})"
 
+class ContainerStock(TimeStamped):
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='containerstock')
+    container = models.ForeignKey(Container, on_delete=models.PROTECT, related_name='containerstock')
+    stock_id = models.CharField(max_length=90, default=gen64Id, null=False)
+    stock = models.PositiveIntegerField(default=0)
+    sold_by = models.CharField(max_length=90, null=False)
+    status = models.CharField(default=0, null=False, max_length=3)
+    qrcode_txt = models.TextField(null=True)
+    active = models.BooleanField(default=True)
+    site_id = models.CharField(max_length=120, blank=True)
+    
+    def __str__(self):
+        return f"{self.product.name} ({self.product.sku})"    
+    
 class Refill(TimeStamped):
     cylinder = models.ForeignKey(Cylinder, on_delete=models.CASCADE, related_name='refills', null=True)
     # customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='refills')
@@ -431,7 +416,7 @@ class GRNItems(models.Model):
     site_comment = models.TextField(null=True)
 
     def __str__(self):
-        return f"{self.product or self.item}"
+        return f"{self.product or self.item} - ({self.grn})"
 
 
 
