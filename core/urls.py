@@ -32,6 +32,7 @@ urlpatterns = [
     
     path('products/', views.products_list, name='products-list'),
     path('products/new/', views.add_products, name='products-create'),
+    path('edit-products/', views.edit_product, name='edit-products'),
     path('item-sale/', views.sale_products, name='products-sale'),
     path('swap-sale/', views.swap_products, name='products-swap'),
     path('pull-item/', views.myStockInfo, name='products-find'),

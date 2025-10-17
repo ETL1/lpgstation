@@ -814,6 +814,42 @@ def add_products(request):
     return redirect('/products')
 
 
+@login_required
+@csrf_exempt
+def edit_product(request):
+    if request.method == 'POST':
+        try:
+            name = request.POST.get('name')
+            item_id = request.POST.get('item_id')
+            unit_price = request.POST.get('unit_price')
+            stock = int(request.POST.get('stock', 0))
+            more_info = request.POST.get('more_info')
+            
+            print(f'{name} - {item_id} - {unit_price} - {stock} - {more_info}')
+
+            if not all([name, unit_price]) or stock <= 0:
+                messages.error(request, 'Please fill in all required fields.')
+                return redirect('/products')
+
+            # Edit product
+            product = Product.objects.filter(item_id=item_id).update(
+                name=name,
+                unit_price=unit_price,
+                more_info=more_info,
+                stock=stock
+            )
+            
+            messages.success(request, f'Product "{product.name}" was edited successfully.')
+            return redirect('/products')
+
+        except Exception as e:
+            messages.error(request, f'Error editing product: {e}')
+            return redirect('/products')
+
+    messages.error(request, 'Invalid request method.')
+    return redirect('/products')
+
+
 @api_view(['GET', ])
 @permission_classes([AllowAny])
 def productList(request, id):
@@ -1474,7 +1510,7 @@ def verify_admin_password(request):
         # Get admin user (you can adapt this if multiple admins exist)
         from django.contrib.auth import get_user_model
         # User = get_user_model()
-        admin_user = CustomUser.objects.filter(access_level=0, username=username).first()
+        admin_user = CustomUser.objects.filter(access_level=4, username=username).first()
 
         if admin_user and admin_user.check_password(password):
             return JsonResponse({'success': True})

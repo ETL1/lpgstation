@@ -184,7 +184,7 @@
 
 
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
+      {% comment %} document.addEventListener("DOMContentLoaded", function () {
          let pendingActionUrl = null;
 
          // Intercept all delete/edit buttons (add class="requires-admin" to them)
@@ -232,7 +232,66 @@
             }
             return cookieValue;
          }
+      }); {% endcomment %}
+      document.addEventListener("DOMContentLoaded", function () {
+      let pendingFormId = null;
+
+      // Intercept all buttons that need admin approval
+      document.querySelectorAll(".requires-admin").forEach(button => {
+         button.addEventListener("click", function (e) {
+            e.preventDefault();
+            pendingFormId = this.getAttribute("data-form-id");
+            new bootstrap.Modal(document.getElementById("adminPasswordModal")).show();
+         });
       });
+
+      // Handle admin confirmation
+      document.getElementById("adminConfirmBtn").addEventListener("click", function () {
+         const password = document.getElementById("adminPasswordInput").value;
+         const username = document.getElementById("adminUsernameInput").value;
+
+         fetch("/verify-admin-password/", {
+            method: "POST",
+            headers: {
+            "X-CSRFToken": getCookie("csrftoken"),
+            "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: new URLSearchParams({ password, username })
+         })
+         .then(res => res.json())
+         .then(data => {
+            if (data.success) {
+            const modalEl = document.getElementById("adminPasswordModal");
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+
+            // ✅ Now submit the pending form
+            if (pendingFormId) {
+               document.getElementById(pendingFormId).submit();
+            }
+            } else {
+            document.getElementById("adminAuthError").classList.remove("d-none");
+            }
+         });
+      });
+
+      // Helper to get CSRF token
+      function getCookie(name) {
+         let cookieValue = null;
+         if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + "=")) {
+               cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+               break;
+            }
+            }
+         }
+         return cookieValue;
+      }
+      });
+
       </script>
 
 
