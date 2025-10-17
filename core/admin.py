@@ -18,3 +18,4 @@ admin.site.register(CloseOfDay)
 admin.site.register(ProductQR)
 admin.site.register(Measurables)
 admin.site.register(ConsumerSales)
+

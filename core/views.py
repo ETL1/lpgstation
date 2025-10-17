@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from core import serializers
-from .models import CloseOfDay, ContainerStock, ProductQR, generate_otp
+from .models import CloseOfDay, ContainerSales, ContainerStock, ProductQR, generate_otp
 from decimal import Decimal
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView, ListView, DetailView, CreateView, UpdateView
@@ -523,6 +523,8 @@ def create_grn(request):
 
 #     return redirect('/grn')
 
+from django.db import transaction
+from django.db.models import F
 @csrf_exempt
 @login_required
 def make_grn(request):
@@ -575,25 +577,33 @@ def make_grn(request):
                             admin_comment=comm
                         )
                         
-                        from django.db.models import F
+                        # from django.db.models import F
 
-                        obj, created = ContainerStock.objects.get_or_create(
-                            container=cont,
-                            product=itmx,
-                            defaults={'stock': qty}
-                        )
-
-                        if not created:
-                            ContainerStock.objects.filter(
-                                container=cont,
-                                product=itmx
-                            ).update(stock=F('stock') + qty)
-
-                        # ContainerStock.objects.create(
+                        # obj, created = ContainerStock.objects.get_or_create(
                         #     container=cont,
                         #     product=itmx,
-                        #     stock=qty
+                        #     defaults={'stock': qty}
                         # )
+
+                        # if not created:
+                        #     ContainerStock.objects.filter(
+                        #         container=cont,
+                        #         product=itmx
+                        #     ).update(stock=F('stock') + qty)
+                        
+
+                        with transaction.atomic():
+                            obj, created = ContainerStock.objects.select_for_update().get_or_create(
+                                container=cont,
+                                product=itmx,
+                                defaults={'stock': qty}
+                            )
+
+                            if not created:
+                                obj.stock = F('stock') + qty
+                                obj.save(update_fields=['stock'])
+
+
 
                         itmx.stock = int(itmx.stock) - int(qty)
                         itmx.save()
@@ -877,10 +887,73 @@ def sale_products(request):
         'resMssg': 1}, status=status.HTTP_404_NOT_FOUND)
     else:
         item.stock = int(item.stock) - clean_value
+        item.sell_type = "full-deposit"
         item.save()
+        ContainerSales.objects.create(
+            product=item.product,
+            container=item.container,
+            stock_id=item.stock_id,
+            stock=clean_value,
+            sold_by=user.uid,
+            status=0,
+            sell_type="full-deposit",
+        )
 
     return Response({
         'response': 'Transaction was successful',
+        'resMssg': 1
+    }, status=status.HTTP_200_OK)
+    
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def swap_products(request):
+    if request.method != "POST":
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    data = JSONParser().parse(request)
+    qr_code_str = data.get('qr_code')
+    uid = data.get('uid')
+    quantity = data.get('quantity')
+    
+    if not qr_code_str or not uid:
+        return Response({'error': 'Missing qr_code or uid'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = CustomUser.objects.get(uid=uid)
+    except CustomUser.DoesNotExist:
+        print(f"'error': 'User not found 2'")
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        item = ContainerStock.objects.get(product__item_id__icontains=qr_code_str,container__site_id__icontains=user.site_id.site_id)
+    except ContainerStock.DoesNotExist:
+        return Response({'response': 'Swap was not successful',
+        'resMssg': 1}, status=status.HTTP_404_NOT_FOUND)
+
+
+    # Assign user and site
+    clean_value = int(float(quantity))
+    if  int(float(item.stock)) < clean_value:
+        return Response({'response': 'Swap was not successful',
+        'resMssg': 1}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        item.stock = int(item.stock) - clean_value
+        item.sell_type = "swap"
+        item.save()
+        
+        ContainerSales.objects.create(
+            product=item.product,
+            container=item.container,
+            stock_id=item.stock_id,
+            stock=clean_value,
+            sold_by=user.uid,
+            status=0,
+            sell_type="swap",
+        )
+
+    return Response({
+        'response': 'Swap was successful',
         'resMssg': 1
     }, status=status.HTTP_200_OK)
 
@@ -1283,45 +1356,108 @@ def request_close_of_day(request):
     return JsonResponse({"error": "Invalid request method"}, status=405)
 
 
+# @csrf_exempt
+# def verify_close_of_day(request):
+#     """Verify OTP and approve closure."""
+#     if request.method == "POST":
+#         try:
+#             data = json.loads(request.body.decode('utf-8'))
+#         except (json.JSONDecodeError, UnicodeDecodeError):
+#             data = request.POST
+
+#         otp = data.get("otp")
+#         approved_by = data.get("approved_by")
+
+#         if not otp or not approved_by:
+#             return JsonResponse({"error": "otp and approved_by are required"}, status=400)
+        
+#         usr = CustomUser.objects.get(uid=approved_by)
+        
+#         try:
+#             close = CloseOfDay.objects.get(otp=otp, otp_verified=False, requested_by=approved_by)
+#             close.otp_verified = True
+#             close.approved_by = approved_by
+#             close.site_id = usr.site_id.site_id
+#             close.total_amount = str(close.total_amount)
+#             close.total_refills = close.total_refills
+#             close.save()
+
+#             return JsonResponse({
+#                 "message": "Close of Day approved successfully.",
+#                 "from": close.start_date,
+#                 "to": close.end_date,
+#                 "total_refills": close.total_refills,
+#                 "total_amount": str(close.total_amount)
+#             })
+
+#         except CloseOfDay.DoesNotExist:
+#             return JsonResponse({"error": "Invalid or already used OTP."}, status=400)
+
+#     return JsonResponse({"error": "Invalid request method"}, status=405)
 @csrf_exempt
 def verify_close_of_day(request):
-    """Verify OTP and approve closure."""
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body.decode('utf-8'))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            data = request.POST
+    """Verify OTP and approve Close of Day, returning totals including per-site grand totals."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method"}, status=405)
 
-        otp = data.get("otp")
-        approved_by = data.get("approved_by")
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        data = request.POST
 
-        if not otp or not approved_by:
-            return JsonResponse({"error": "otp and approved_by are required"}, status=400)
-        
+    otp = data.get("otp")
+    approved_by = data.get("approved_by")
+
+    if not otp or not approved_by:
+        return JsonResponse({"error": "otp and approved_by are required"}, status=400)
+
+    # --- Get approver user ---
+    try:
         usr = CustomUser.objects.get(uid=approved_by)
-        
-        try:
-            close = CloseOfDay.objects.get(otp=otp, otp_verified=False, requested_by=approved_by)
-            close.otp_verified = True
-            close.approved_by = approved_by
-            close.site_id = usr.site_id.site_id
-            close.total_amount = str(close.total_amount)
-            close.total_refills = close.total_refills
-            close.save()
+    except CustomUser.DoesNotExist:
+        return JsonResponse({"error": "Approver not found"}, status=404)
 
-            return JsonResponse({
-                "message": "Close of Day approved successfully.",
-                "from": close.start_date,
-                "to": close.end_date,
-                "total_refills": close.total_refills,
-                "total_amount": str(close.total_amount)
-            })
+    # --- Get CloseOfDay record ---
+    try:
+        close = CloseOfDay.objects.get(otp=otp, otp_verified=False, requested_by=approved_by)
 
-        except CloseOfDay.DoesNotExist:
-            return JsonResponse({"error": "Invalid or already used OTP."}, status=400)
+        # --- Calculate totals dynamically ---
+        totals_data = close.calculate_totals()
 
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+        # --- Approve close ---
+        close.otp_verified = True
+        close.approved_by = approved_by
+        close.site_id = getattr(usr.site_id, "site_id", None)  # safe assignment
+        close.save()
 
+        # --- Prepare per-site totals for JSON ---
+        site_totals_json = {
+            site: {
+                "refills": data["refills"],
+                "refill_amount": str(data["refill_amount"]),
+                "sales": data["sales"],
+                "sales_amount": str(data["sales_amount"]),
+                # "grand_total": str(data["grand_total"])
+            } for site, data in totals_data.get("site_totals", {}).items()
+        }
+
+        # --- Full response ---
+        response_data = {
+            "message": "Close of Day approved successfully.",
+            "from": close.start_date,
+            "to": close.end_date,
+            "total_refills": totals_data.get("total_refills", 0),
+            "total_sales": totals_data.get("total_sales", 0),
+            "total_refill_amount": str(totals_data.get("total_refill_amount", "0")),
+            "total_sales_amount": str(totals_data.get("total_sales_amount", "0")),
+            "grand_total_amount": str(totals_data.get("grand_total_amount", "0")),
+            "site_totals": site_totals_json
+        }
+
+        return JsonResponse(response_data)
+
+    except CloseOfDay.DoesNotExist:
+        return JsonResponse({"error": "Invalid or already used OTP."}, status=400)
 
 
 

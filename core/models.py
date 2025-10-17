@@ -17,6 +17,8 @@ from django.dispatch import receiver
 from django.db.models import Sum
 from django.utils import timezone
 from datetime import timedelta
+from collections import defaultdict
+from decimal import Decimal
 
 
 
@@ -29,46 +31,47 @@ def product_qr_upload_path(instance, filename):
     # Folder: qr/products/<SKU>/<filename>
     return f'qr/products/{instance.sku}/{filename}'
 
-class CloseOfDay(models.Model):
-    otp = models.CharField(max_length=6, null=True, blank=True)
-    requested_by = models.CharField(max_length=90, null=True)
-    approved_by = models.CharField(max_length=90, null=True)
-    date_closed = models.DateTimeField(auto_now_add=True)
-    start_date = models.DateTimeField(null=True)
-    end_date = models.DateTimeField(null=True)
-    total_refills = models.IntegerField(default=0)
-    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    otp_verified = models.BooleanField(default=False)
-    site_id = models.CharField(max_length=90, null=True)
+# class CloseOfDay(models.Model):
+#     otp = models.CharField(max_length=6, null=True, blank=True)
+#     requested_by = models.CharField(max_length=90, null=True)
+#     approved_by = models.CharField(max_length=90, null=True)
+#     date_closed = models.DateTimeField(auto_now_add=True)
+#     start_date = models.DateTimeField(null=True)
+#     end_date = models.DateTimeField(null=True)
+#     total_refills = models.IntegerField(default=0)
+#     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+#     otp_verified = models.BooleanField(default=False)
+#     site_id = models.CharField(max_length=90, null=True)
 
-    def __str__(self):
-        return f"CloseOfDay {self.id} ({self.date_closed.date()})"
+#     def __str__(self):
+#         return f"CloseOfDay {self.id} ({self.date_closed.date()})"
 
-    def calculate_totals(self):
-        """Calculate totals based on base price from last close to now."""
-        from core.models import Refill  # avoid circular import
+#     def calculate_totals(self):
+#         """Calculate totals based on base price from last close to now."""
+#         from core.models import Refill  # avoid circular import
 
-        # Get last close record
-        last_close = CloseOfDay.objects.exclude(id=self.id).order_by('-date_closed').first()
-        start_date = last_close.end_date if last_close else timezone.make_aware(timezone.datetime(2000, 1, 1))
-        end_date = timezone.now()
+#         # Get last close record
+#         last_close = CloseOfDay.objects.exclude(id=self.id).order_by('-date_closed').first()
+#         start_date = last_close.end_date if last_close else timezone.make_aware(timezone.datetime(2000, 1, 1))
+#         end_date = timezone.now()
 
-        # Filter refills since last closure
-        refills = Refill.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+#         # Filter refills since last closure
+#         refills = Refill.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
 
-        # Compute totals manually using base price
-        total_refills = refills.count()
-        total_kg = sum([float(r.quantity_kg) for r in refills])
-        total_amount = total_kg * BASE_PRICE_PER_KG
+#         # Compute totals manually using base price
+#         total_refills = refills.count()
+#         total_kg = sum([float(r.quantity_kg) for r in refills])
+#         total_amount = total_kg * BASE_PRICE_PER_KG
 
-        # Update fields
-        self.start_date = start_date
-        self.end_date = end_date
-        self.total_refills = total_refills
-        self.total_amount = total_amount
-        self.save()
+#         # Update fields
+#         self.start_date = start_date
+#         self.end_date = end_date
+#         self.total_refills = total_refills
+#         self.total_amount = total_amount
+#         self.save()
 
-        return refills
+#         return refills
+
     
 
 class TimeStamped(models.Model):
@@ -80,7 +83,7 @@ class TimeStamped(models.Model):
 class Item(TimeStamped):
     name = models.CharField(max_length=120)
     item_type = models.CharField(max_length=120, default=0)
-    size_kg = models.PositiveIntegerField(choices=[(3,'3kg'),(5,'5kg'),(10,'10kg'),(14,'14kg'),(20,'20kg'),(25,'25kg'),(30,'30kg'),(35,'35kg'),(38,'38kg'),(40,'40kg'),(45,'45kg'),(48,'48kg'),(50,'50kg'),(60,'60kg')])
+    size_kg = models.PositiveIntegerField(choices=[(3,'3kg'),(5,'5kg'),(10,'10kg'),(14,'14kg'),(20,'20kg'),(25,'25kg'),(30,'30kg'),(40,'40kg'),(45,'45kg'),(48,'48kg'),(50,'50kg'),(60,'60kg')])
     base_price = models.DecimalField(max_digits=9, decimal_places=2)
     active = models.BooleanField(default=True)
     def __str__(self):
@@ -339,9 +342,22 @@ class ContainerStock(TimeStamped):
     qrcode_txt = models.TextField(null=True)
     active = models.BooleanField(default=True)
     site_id = models.CharField(max_length=120, blank=True)
+    sell_type = models.CharField(max_length=20, blank=True)
     
     def __str__(self):
-        return f"{self.product.name} ({self.product.sku})"    
+        return f"{self.product.name} ({self.product.sku})"  
+    
+class ContainerSales(TimeStamped):
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='containersale')
+    container = models.ForeignKey(Container, on_delete=models.PROTECT, related_name='containersale')
+    stock_id = models.CharField(max_length=90, default=gen64Id, null=False)
+    stock = models.PositiveIntegerField(default=0)
+    sold_by = models.CharField(max_length=90, null=False)
+    status = models.CharField(default=0, null=False, max_length=3)
+    sell_type = models.CharField(max_length=20, blank=True)
+    
+    def __str__(self):
+        return f"{self.product.name})"    
     
 class Refill(TimeStamped):
     cylinder = models.ForeignKey(Cylinder, on_delete=models.CASCADE, related_name='refills', null=True)
@@ -356,6 +372,7 @@ class Refill(TimeStamped):
     qrcode = models.TextField(null=True)
     site_id = models.CharField(max_length=90, null=True)
     phone = models.CharField(max_length=90, null=True)
+    isPaid = models.CharField(max_length=20, blank=True)
     
 
 class Sale(TimeStamped):
@@ -416,7 +433,7 @@ class GRNItems(models.Model):
     site_comment = models.TextField(null=True)
 
     def __str__(self):
-        return f"{self.product or self.item} - ({self.grn})"
+        return f"{self.product or self.item}"
 
 
 
@@ -443,3 +460,103 @@ class Stations(models.Model):
 
     def __str__(self):
         return self.site_id
+    
+    
+from django.db import models
+from django.utils import timezone
+from decimal import Decimal
+from collections import defaultdict
+
+BASE_PRICE_PER_KG = Decimal("47.00")  # base price for refills
+
+class CloseOfDay(models.Model):
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    requested_by = models.CharField(max_length=90, null=True)
+    approved_by = models.CharField(max_length=90, null=True)
+    date_closed = models.DateTimeField(auto_now_add=True)
+    start_date = models.DateTimeField(null=True)
+    end_date = models.DateTimeField(null=True)
+    total_refills = models.IntegerField(default=0)
+    total_sales = models.IntegerField(default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    otp_verified = models.BooleanField(default=False)
+    site_id = models.CharField(max_length=90, null=True)
+
+    def __str__(self):
+        return f"CloseOfDay {self.id} ({self.date_closed.date()})"
+
+    def calculate_totals(self):
+        """
+        Calculate totals from Refill and ContainerSales since last closure.
+        Includes merged per-site totals and safe Decimal operations.
+        """
+        from core.models import Refill, ContainerSales
+
+        # --- Determine date range ---
+        last_close = CloseOfDay.objects.exclude(id=self.id).order_by('-date_closed').first()
+        start_date = last_close.end_date if last_close else timezone.make_aware(timezone.datetime(2000, 1, 1))
+        end_date = timezone.now()
+
+        # --- REFILL TOTALS ---
+        # refill_qs = Refill.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+        refill_qs = Refill.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+        if self.site_id:
+            sitr = Container.objects.get(site_id=self.site_id)
+            refill_qs = refill_qs.filter(site_id=sitr.id)
+
+        total_refills = refill_qs.count()
+        total_refill_amount = sum(Decimal(str(r.quantity_kg)) * BASE_PRICE_PER_KG for r in refill_qs)
+
+        # --- CONTAINER SALES TOTALS ---
+        sales_qs = ContainerSales.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+        if self.site_id:
+            sales_qs = sales_qs.filter(container__site_id=self.site_id)  # adjust if needed
+
+        total_sales = sales_qs.count()
+        total_sales_amount = sum(
+            Decimal(s.stock) * Decimal(str(s.product.unit_price)) if hasattr(s.product, "unit_price") else Decimal("0")
+            for s in sales_qs
+        )
+
+        # --- MERGE PER-SITE TOTALS ---
+        site_totals = defaultdict(lambda: {"refills": 0, "refill_amount": Decimal("0"),
+                                           "sales": 0, "sales_amount": Decimal("0")})
+
+        for r in refill_qs:
+            site = r.site_id or "Unknown"
+            site_totals[site]["refills"] += 1
+            site_totals[site]["refill_amount"] += Decimal(str(r.quantity_kg)) * BASE_PRICE_PER_KG
+
+        for s in sales_qs:
+            site = getattr(s.container, "site_id", "Unknown")
+            unit_price = Decimal(str(s.product.unit_price)) if hasattr(s.product, "unit_price") else Decimal("0")
+            site_totals[site]["sales"] += 1
+            site_totals[site]["sales_amount"] += Decimal(s.stock) * unit_price
+
+        # --- GRAND TOTAL ---
+        grand_total_amount = total_refill_amount + total_sales_amount
+
+        # --- Update model ---
+        self.start_date = start_date
+        self.end_date = end_date
+        self.total_refills = total_refills
+        self.total_sales = total_sales
+        self.total_amount = grand_total_amount
+        self.save()
+
+        # --- JSON-like response ---
+        return {
+            "total_refills": total_refills,
+            "total_sales": total_sales,
+            "total_refill_amount": total_refill_amount,
+            "total_sales_amount": total_sales_amount,
+            "grand_total_amount": grand_total_amount,
+            "refills": list(refill_qs.values()),  # optional serialized queryset
+            "sales": list(sales_qs.values()),     # optional serialized queryset
+            "site_totals": {k: {
+                "refills": v["refills"],
+                "refill_amount": v["refill_amount"],
+                "sales": v["sales"],
+                "sales_amount": v["sales_amount"]
+            } for k, v in site_totals.items()},
+        }

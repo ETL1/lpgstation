@@ -33,6 +33,7 @@ urlpatterns = [
     path('products/', views.products_list, name='products-list'),
     path('products/new/', views.add_products, name='products-create'),
     path('item-sale/', views.sale_products, name='products-sale'),
+    path('swap-sale/', views.swap_products, name='products-swap'),
     path('pull-item/', views.myStockInfo, name='products-find'),
     path('products/qr-gen/', views.add_bulk_product, name='products-qr-create'),
     path('products/new/measurable', views.add_measurable_products, name='products-create'),

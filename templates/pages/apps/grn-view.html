@@ -65,8 +65,10 @@
     {% comment %} <a href="/edit-grn/{% for x in grn %}{{ x.id }}{% endfor %}/"><button type="button" class="btn btn-light-primary"> <i class="ki-solid ki-pencil">
 </i> Edit GRN</button></a> {% endcomment %}
     <!--end::Edit button-->
-    <a href="/delete-grn/{% for x in grn %}{{ x.id }}{% endfor %}/"><button type="button" class="btn btn-light-danger"> <i class="ki-solid ki-eraser">
+    {% for grn in grn %}
+<a href="#!" data-action-url="{% url 'core:delete-grn' grn.id %}" class="requires-admin"><button type="button" class="btn btn-light-danger"> <i class="ki-solid ki-eraser">
 </i> Delete GRN</button></a>
+{% endfor %}
 
     <button type="button" class="btn btn-success" onclick="printDiv('printableArea')"> <i class="ki-solid ki-abstract-10">
 </i> Print GRN</button>
@@ -227,6 +229,7 @@
                                         </td>
                                         <td class="text-end">
                                             {{x.product.unit_price}}
+                                            {% comment %} {% if x.product.unit_price == '' %}{{x.quantity_kg}}{% endif %} {% endcomment %}
                                             {% comment %} K {% get_unit_price x.item_id %} {% endcomment %}
                                         </td>
                                     </tr>
