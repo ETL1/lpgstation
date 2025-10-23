@@ -188,7 +188,7 @@ class OrderItem(TimeStamped):
 
 class Product(TimeStamped):
     item_id = models.CharField(max_length=90, default=uuid.uuid4, null=False)
-    name = models.CharField(max_length=120, unique=True)
+    name = models.CharField(max_length=120, unique=False)
     sku = models.TextField(max_length=90, null=True)
     more_info = models.TextField(null=True)
     unit_price = models.DecimalField(max_digits=9, decimal_places=2)
@@ -346,6 +346,28 @@ class ContainerStock(TimeStamped):
     
     def __str__(self):
         return f"{self.product.name} ({self.product.sku})"  
+    
+    def stock_status(self):
+        from core.models import ContainerStock  # avoid circular import
+
+        # Sum of all quantities of this product in GRNItems
+        total_grn_quantity = (
+            ContainerStock.objects.filter(product__item_id=self.id)  # assuming ForeignKey to Product
+            .aggregate(total=Sum('stock'))
+            .get('total') or 0
+        )
+
+        remaining = (self.stock or 0) - total_grn_quantity
+        
+        if remaining >= 5:
+            return ("badge-light-success", "Stocked")
+        elif remaining >= 3:
+            return ("badge-light-warning", "Low Stock")
+        elif remaining >= 1:
+            return ("badge-light-danger", "Out of Stock")
+        else:
+            return ("badge-light-danger", "Out of Stock")
+
     
 class ContainerSales(TimeStamped):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='containersale')

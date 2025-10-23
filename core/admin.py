@@ -1,6 +1,6 @@
 
 from django.contrib import admin
-from .models import GRN, CloseOfDay, ConsumerSales, Container, GRNItems, Item, Customer, Cylinder, CylinderEvent, Measurables, Order, OrderItem, Product, ProductQR, Refill, Sale
+from .models import GRN, CloseOfDay, ConsumerSales, Container, ContainerSales, GRNItems, Item, Customer, Cylinder, CylinderEvent, Measurables, Order, OrderItem, Product, ProductQR, Refill, Sale
 
 admin.site.register(Item)
 admin.site.register(Customer)
@@ -18,4 +18,6 @@ admin.site.register(CloseOfDay)
 admin.site.register(ProductQR)
 admin.site.register(Measurables)
 admin.site.register(ConsumerSales)
+admin.site.register(ContainerSales)
+
 

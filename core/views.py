@@ -349,10 +349,12 @@ def container_view(request, pk):
         refills.annotate(
             line_total=ExpressionWrapper(
                 F("quantity_kg") * 47,   # or F("item__base_price")
-                output_field=DecimalField()
+                output_field=DecimalField(decimal_places=2)
             )
         ).aggregate(total=Sum("line_total"))["total"] or 0
     )
+    
+    inventory = ContainerStock.objects.filter(container__site_id__icontains=pk)
     
     context = {
         'conts' : conts,
@@ -360,7 +362,8 @@ def container_view(request, pk):
         'cylinders': cylinders,
         'total_price': total_price,
         'refcount': refill_count,
-        'cylcount': cylinder_count
+        'cylcount': cylinder_count,
+        'invent': inventory
     }
     return render(request, 'pages/apps/view-container.html', context)  
     
@@ -456,72 +459,6 @@ def create_grn(request):
     }
     return render(request, 'pages/apps/create-grn.html', context)
 
-# @csrf_exempt
-# @login_required
-# def make_grn(request):
-#     if request.method == 'POST':
-#         items = request.POST.getlist('item')
-#         quantities = request.POST.getlist('quantity')
-#         comments = request.POST.getlist('comments')
-#         site_id = request.POST.get('site_id')
-#         # create GRN first
-#         push_grn = GRN.objects.create(initia=request.user.uid)
-        
-
-#         from itertools import zip_longest
-#         for itm, qty, comm in zip_longest(items, quantities, comments, fillvalue=None):
-#             if itm and qty:
-#                 try:
-#                     itmx = Item.objects.get(id=itm)
-#                     GRNItems.objects.create(
-#                     grn=push_grn,
-#                     item=itmx,
-#                     quantity=qty,
-#                     admin_comment=comm
-#                 )
-#                 except:
-#                     itmx = Product.objects.get(item_id=itm)
-#                     bkstock = itmx.stock
-#                     cont = Container.objects.get(site_id=site_id)
-#                     if int(qty) <= int(itmx.stock):
-#                         GRNItems.objects.create(
-#                             grn=push_grn,
-#                             product=itmx,
-#                             quantity=qty,
-#                             admin_comment=comm
-#                         )
-#                         ContainerStock.objects.create(
-#                             container=cont,
-#                             product=itmx,
-#                             stock=qty
-#                         )
-#                         itmx.stock = int(itmx.stock)-int(qty)
-#                         itmx.save()
-#                     else:
-#                         itmx.stock = bkstock
-#                         itmx.save()
-#                         push_grn.delete()
-#                         messages.error(request,'You do not have enough stock left.')
-#                         pass
-        
-#         qr = qrcode.QRCode(
-#             version=1,
-#             error_correction=qrcode.constants.ERROR_CORRECT_H,
-#             box_size=10,
-#             border=4
-#         )
-#         qr.add_data(push_grn.grn_Id)
-#         qr.make(fit=True)
-#         img = qr.make_image(fill_color="black", back_color="white")
-
-#         # Save QR code image to Cylinder field
-#         buffer = io.BytesIO()
-#         img.save(buffer, format='PNG')
-#         push_grn.qr_code.save(f'{push_grn.grn_Id}.png', ContentFile(buffer.getvalue()), save=False)
-        
-#         return redirect('/grn')
-
-#     return redirect('/grn')
 
 from django.db import transaction
 from django.db.models import F
@@ -779,6 +716,8 @@ def add_products(request):
                 more_info=more_info,
                 stock=stock
             )
+            
+            print(f"{name} - {unit_price} - {stock} - {more_info}")
 
             # ✅ Generate multiple QR codes (one per unit in stock)
             # for i in range(stock):
