@@ -103,7 +103,7 @@
                 </div>
                 <!--end::Details-->
 
-                <!--begin::Actions-->
+                {% comment %} <!--begin::Actions-->
                 <div class="d-flex mb-4">
                   <a
                     href="#"
@@ -113,7 +113,7 @@
                     >Suspend Container</a
                   >
                 </div>
-                <!--end::Actions-->
+                <!--end::Actions--> {% endcomment %}
               </div>
               <!--end::Head-->
 
@@ -159,6 +159,31 @@
 
                     <!--begin::Label-->
                     <div class="fw-semibold fs-6 text-gray-500">Cylinders</div>
+                    <!--end::Label-->
+                  </div>
+                  <!--end::Stat-->
+
+                  <div
+                    class="border border-gray-300 border-dashed rounded min-w-125px py-3 px-4 me-6 mb-3"
+                  >
+                    <!--begin::Number-->
+                    <div class="d-flex align-items-center">
+                      <i class="ki-duotone ki-arrow-up fs-3 text-danger me-2"
+                        ><span class="path1"></span><span class="path2"></span
+                      ></i>
+                      <div
+                        class="fs-4 fw-bold counted"
+                        data-kt-countup="true"
+                        data-kt-countup-value="{{ s_count }}"
+                        data-kt-initialized="1"
+                      >
+                        {{ s_count }}
+                      </div>
+                    </div>
+                    <!--end::Number-->
+
+                    <!--begin::Label-->
+                    <div class="fw-semibold fs-6 text-gray-500">Total Sales</div>
                     <!--end::Label-->
                   </div>
                   <!--end::Stat-->
@@ -224,12 +249,12 @@
                   </li>
                   <!--end::Nav item-->
                         <!--begin::Nav item-->
-                  <li class="nav-item my-1">
+                  {% comment %} <li class="nav-item my-1">
                      <a class="btn btn-sm btn-color-gray-600 bg-state-body btn-active-color-gray-800 fw-bolder fw-bold fs-6 fs-lg-base nav-link px-3 px-lg-4 mx-1  
                         " data-bs-toggle="tab" href="#kt_tab_pane_reports"> 
                         
                         Reports                </a>
-                  </li>
+                  </li> {% endcomment %}
                   <!--end::Nav item-->
                         <!--begin::Nav item-->
                   <li class="nav-item my-1">
@@ -338,6 +363,7 @@
                            <th class="min-w-125px" data-priority="1">Name</th>
                            <th class="min-w-125px">Details</th>
                            <th class="min-w-125px">Status</th>
+                           <th class="min-w-125px">Unit Price</th>
                            <th class="min-w-125px">Stock</th>
                            <th class="text-center min-w-125px">Created Date</th>
                         </tr>
@@ -365,6 +391,9 @@
                                  {{ c.stock_status.1 }}
                               </div>
 
+                           </td>
+                           <td>
+                           K {{ c.product.unit_price }}
                            </td>
                            <td data-filter="full">
                               {{ c.stock }}
@@ -739,7 +768,76 @@
             <!--end::Card-->
       </div>
       <div class="tab-pane fade" id="kt_tab_pane_closures" role="tabpanel">
-         <h3>Coming Soon</h3>
+         <!--begin::Card-->
+            <div class="card mb-6">
+               <!--begin::Card body-->
+               <div class="card-body pt-0">
+                  <!--begin::Table-->
+                  <table
+                     class="table align-middle table-row-dashed fs-6 gy-5"
+                     id="kt_products_table"
+                  >
+                     <thead>
+                        <tr
+                           class="text-start text-gray-500 fw-bold fs-7 text-uppercase gs-0"
+                        >
+                           <th class="min-w-125px" data-priority="1">Name</th>
+                           <th class="min-w-125px">Details</th>
+                           
+                           <th class="min-w-125px">Unit Price</th>
+                           <th class="min-w-125px">Qty</th>
+                           <th class="min-w-125px">Total Price</th>
+                           <th class="text-center min-w-125px">Sold On</th>
+                        </tr>
+                     </thead>
+                     <tbody class="fw-semibold text-gray-600">
+                        {% for c in sales %}
+                        <tr>
+                        
+                           <td>
+                              <div class="d-flex align-items-center">
+
+                                 <!--begin::Title-->
+                                 <div class="ms-0">
+                                       <div class="fw-bold">{{ c.product.name }}</div>
+                                       <div class="fs-7 text-muted">{{ c.product.sku }}</div>
+                                 </div>
+                                 <!--end::Title-->
+                              </div>
+                           </td>
+                           <td>
+                             {{ c.product.more_info }}
+                           </td>
+                           <td>K {{ c.product.unit_price }}</td>
+                           <td data-filter="full">
+                              {{ c.stock }}
+                           </td>
+                           <td>
+                             K {% get_total_amount c.stock c.product.unit_price %}
+                           </td>
+                           
+                           
+                           <td class="text-center">{{ c.created_at }}</td>
+                           
+                  
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td>N/A</td>
+                            <td>N/A</td>
+                            <td>N/A</td>
+                            <td>N/A</td>
+                            <td>N/A</td>
+                            <td>N/A</td>
+                        </tr>
+                        {% endfor %}
+                     </tbody>
+                  </table>
+                  <!--end::Table-->
+               </div>
+               <!--end::Card body-->
+            </div>
+            <!--end::Card-->
       </div>
    </div>
     

@@ -264,6 +264,11 @@ def get_stock(owner):
     usr = Product.objects.filter(item_id=owner).first()
     return str(usr.stock)
 
+@register.simple_tag
+def get_total_amount(initial, unit):
+    _value = int(initial)
+    _value *= (int(unit))
+    return format(_value, ",")
 
 @register.simple_tag
 def get_total_price(rate):
@@ -298,7 +303,7 @@ def cylinder_dispense_sales(pk):
             )
         ).aggregate(total=Sum("line_total"))["total"] or 0
     )
-    
+    total_price = f"{total_price:,.2f}"
     return total_price
 # @register.simple_tag
 # def get_bus_tpin(owner):

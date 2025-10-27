@@ -342,6 +342,7 @@ def container_view(request, pk):
     refill_count = Refill.objects.filter(site_id=site_id.id).count()
     cylinders = Cylinder.objects.filter(location=site_id.id).order_by('-created_at')
     cylinder_count = Cylinder.objects.filter(location=site_id.id).count()
+    sales_count = ContainerSales.objects.filter(container__site_id__icontains=pk).count()
     
     from django.db.models import F, Sum, DecimalField, ExpressionWrapper
     # compute (quantity_kg * 45) per row
@@ -353,8 +354,11 @@ def container_view(request, pk):
             )
         ).aggregate(total=Sum("line_total"))["total"] or 0
     )
-    
-    inventory = ContainerStock.objects.filter(container__site_id__icontains=pk)
+    total_price = f"{total_price:,.2f}"
+    # formatted_total = f"{total_price:,.2f}"
+
+    inventory = ContainerStock.objects.filter(container__site_id__icontains=pk).order_by('-created_at')
+    sales = ContainerSales.objects.filter(container__site_id__icontains=pk).order_by('-created_at')
     
     context = {
         'conts' : conts,
@@ -363,7 +367,9 @@ def container_view(request, pk):
         'total_price': total_price,
         'refcount': refill_count,
         'cylcount': cylinder_count,
-        'invent': inventory
+        'invent': inventory,
+        'sales': sales,
+        's_count':sales_count
     }
     return render(request, 'pages/apps/view-container.html', context)  
     
