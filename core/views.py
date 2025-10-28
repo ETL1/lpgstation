@@ -1141,27 +1141,31 @@ def activate_user(request, id):
         return Response(serializer.data)
     
 
-@api_view(['POST', ])
-@permission_classes([AllowAny])
-def _refill_func(request):
-    # info_data = CustomUser.objects.get(uid=pk)
-    if request.method == "POST":
-        refill_data = JSONParser().parse(request)
-        refill_serializer = RefillSerializer(data=refill_data)
-        if refill_serializer.is_valid():
-            refill_serializer.save()
-            response = {
-                'response': 'Transaction was successful',
-                'resMssg': 1,
-            }
-            return Response(response, status=status.HTTP_200_OK)
-        data = refill_serializer.errors
-        print(refill_serializer.errors)
+# @api_view(['POST', ])
+# @permission_classes([AllowAny])
+# def _refill_func(request):
+#     # info_data = CustomUser.objects.get(uid=pk)
+#     if request.method == "POST":
+#         refill_data = JSONParser().parse(request)
+#         refill_serializer = RefillSerializer(data=refill_data)
+#         if refill_serializer.is_valid():
+#             refill_serializer.save()
+#             response = {
+#                 'response': 'Transaction was successful',
+#                 'resMssg': 1,
+#             }
+#             return Response(response, status=status.HTTP_200_OK)
+#         data = refill_serializer.errors
+#         print(refill_serializer.errors)
         
-        return Response(data)
-    else:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-    
+#         return Response(data)
+#     else:
+#         return Response(status=status.HTTP_404_NOT_FOUND)
+
+
+def pull_rem_quantity(cylinder):
+    return cylinder.remaining_quantity()
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def refill_func(request):
@@ -1172,18 +1176,28 @@ def refill_func(request):
         if refill_serializer.is_valid():
             try:
                 qrc = Cylinder.objects.get(id=refill_data['qrcode'])
-                if str(qrc.id) == refill_data['qrcode']: 
-                    instance = refill_serializer.save()  # saved object already has refill_id + date_added
-                    response = {
-                        'response': 'Transaction was successful',
-                        'resMssg': 1,
-                        'refill_id': instance.refill_id,
-                    }
-                    dbpush = Cylinder.objects.get(id=refill_data['qrcode'])
-                    dbpush.status = "in_use"
-                    dbpush.location = refill_data['site_id']
-                    dbpush.save()
-                    return Response(response, status=status.HTTP_201_CREATED)
+                if str(qrc.id) == refill_data['qrcode']:
+                    clean_value = int(float(refill_data['quantity_kg']))
+                    if  int(float(pull_rem_quantity(qrc))) > clean_value:
+                        instance = refill_serializer.save()  # saved object already has refill_id + date_added
+                        response = {
+                            'response': 'Transaction was successful',
+                            'resMssg': 1,
+                            'refill_id': instance.refill_id,
+                        }
+                        dbpush = Cylinder.objects.get(id=refill_data['qrcode'])
+                        dbpush.status = "in_use"
+                        dbpush.location = refill_data['site_id']
+                        dbpush.save()
+                        return Response(response, status=status.HTTP_201_CREATED)
+                    else:    
+                        response = {
+                            'response': 'Requested quantity exceeds remaining quantity.',
+                            'resMssg': 0,
+                            'refill_id': '',
+                            'quantity': pull_rem_quantity(qrc),
+                        }
+                        return Response(response, status=status.HTTP_403_FORBIDDEN)
                 else:
                     print(f'{refill_serializer.errors} if error')
                     return Response(refill_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
