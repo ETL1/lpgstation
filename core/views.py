@@ -50,11 +50,30 @@ from .forms import CylinderForm, DistributionForm, OrderForm, RefillForm, SaleFo
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'index-2.html'
     def get_context_data(self, **kwargs):
+        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        
         ctx = super().get_context_data(**kwargs)
         ctx['cyl_total'] = Cylinder.objects.count()
         ctx['orders_pending'] = Order.objects.filter(status='pending').count()
         ctx['refill_count'] = Refill.objects.count()
-        ctx['sales_amount'] = (Sale.objects.aggregate(s=Sum('total_price'))['s'] or 0)
+        ctx['refill_today'] = Refill.objects.filter(created_at__date=today).count()
+        ctx['cont_count'] = Container.objects.count()
+        ctx['sales_amount'] = (ContainerSales.objects.all() or 0).count()
+        ctx['sales_today'] = ContainerSales.objects.filter(created_at__date=today).count()
+
+        refill_tot = (
+            Refill.objects.filter(created_at__date=today).annotate(
+                line_total=ExpressionWrapper(
+                    F('quantity_kg') * 47,
+                    output_field=DecimalField(decimal_places=2)
+                )
+            ).aggregate(total=Sum('line_total'))['total'] or 0
+        )
+        ctx['refill_totals'] = f"{refill_tot:,.2f}"
+
         return ctx 
 
 class CylinderList(LoginRequiredMixin, TemplateView):
@@ -83,7 +102,7 @@ def cylinder_list(request):
     total_price = (
         refills.annotate(
             line_total=ExpressionWrapper(
-                F("quantity_kg") * 45,   # or F("item__base_price")
+                F("quantity_kg") * 47,   # or F("item__base_price")
                 output_field=DecimalField()
             )
         ).aggregate(total=Sum("line_total"))["total"] or 0
@@ -113,8 +132,6 @@ class CylinderCreate(LoginRequiredMixin, CreateView):
         CylinderEvent.objects.create(cylinder=self.object, user=self.request.user, event_type='create')
         return resp
     
-
-
 
 
 @login_required
@@ -372,6 +389,7 @@ def container_view(request, pk):
         's_count':sales_count
     }
     return render(request, 'pages/apps/view-container.html', context)  
+    
     
 @login_required
 @csrf_exempt

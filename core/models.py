@@ -31,47 +31,6 @@ def product_qr_upload_path(instance, filename):
     # Folder: qr/products/<SKU>/<filename>
     return f'qr/products/{instance.sku}/{filename}'
 
-# class CloseOfDay(models.Model):
-#     otp = models.CharField(max_length=6, null=True, blank=True)
-#     requested_by = models.CharField(max_length=90, null=True)
-#     approved_by = models.CharField(max_length=90, null=True)
-#     date_closed = models.DateTimeField(auto_now_add=True)
-#     start_date = models.DateTimeField(null=True)
-#     end_date = models.DateTimeField(null=True)
-#     total_refills = models.IntegerField(default=0)
-#     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-#     otp_verified = models.BooleanField(default=False)
-#     site_id = models.CharField(max_length=90, null=True)
-
-#     def __str__(self):
-#         return f"CloseOfDay {self.id} ({self.date_closed.date()})"
-
-#     def calculate_totals(self):
-#         """Calculate totals based on base price from last close to now."""
-#         from core.models import Refill  # avoid circular import
-
-#         # Get last close record
-#         last_close = CloseOfDay.objects.exclude(id=self.id).order_by('-date_closed').first()
-#         start_date = last_close.end_date if last_close else timezone.make_aware(timezone.datetime(2000, 1, 1))
-#         end_date = timezone.now()
-
-#         # Filter refills since last closure
-#         refills = Refill.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
-
-#         # Compute totals manually using base price
-#         total_refills = refills.count()
-#         total_kg = sum([float(r.quantity_kg) for r in refills])
-#         total_amount = total_kg * BASE_PRICE_PER_KG
-
-#         # Update fields
-#         self.start_date = start_date
-#         self.end_date = end_date
-#         self.total_refills = total_refills
-#         self.total_amount = total_amount
-#         self.save()
-
-#         return refills
-
     
 
 class TimeStamped(models.Model):

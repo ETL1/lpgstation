@@ -1,4 +1,5 @@
 import ast
+from decimal import Decimal
 import json
 import os
 
@@ -271,11 +272,15 @@ def get_total_amount(initial, unit):
     return format(_value, ",")
 
 @register.simple_tag
+# def get_total_price(rate):
+#     _value = 47
+#     _value *= (int(rate))
+#                 # print(c.rate)
+#     return format(_value, ",")
 def get_total_price(rate):
-    _value = 47
-    _value *= (int(rate))
-                # print(c.rate)
-    return format(_value, ",")
+    base_price = Decimal("47.00")  # use Decimal to preserve precision
+    total = base_price * Decimal(str(rate))  # cast safely as Decimal
+    return f"{total:,.2f}"  # format with comma and 2 decimal places
 
 
 @register.simple_tag
