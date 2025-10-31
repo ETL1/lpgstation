@@ -604,6 +604,7 @@ def make_grn(request):
 @login_required
 @transaction.atomic
 def delete_grn(request, pk):
+    
     try:
         # Get the GRN record
         grn = get_object_or_404(GRN, id=pk)
@@ -1285,7 +1286,8 @@ def myGRNaccept(request):
     try:
         grn = GRN.objects.get(grn_Id__icontains=qr_code_str, status=0)  # search by filename
     except GRN.DoesNotExist:
-        return Response({'response': 'Transaction was successful',
+        print(qr_code_str)
+        return Response({'response': 'Transaction was not successful',
         'resMssg': 1}, status=status.HTTP_404_NOT_FOUND)
 
     try:

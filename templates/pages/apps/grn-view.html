@@ -61,13 +61,17 @@
 <!--begin::Actions-->
 <div class="d-flex align-items-center gap-2 gap-lg-3">
         
-    <!--begin::Edit button-->
-    {% comment %} <a href="/edit-grn/{% for x in grn %}{{ x.id }}{% endfor %}/"><button type="button" class="btn btn-light-primary"> <i class="ki-solid ki-pencil">
-</i> Edit GRN</button></a> {% endcomment %}
-    <!--end::Edit button-->
-    {% for grn in grn %}
+    {% comment %} <!--begin::Edit button-->
+<a href="/edit-grn/{% for x in grn %}{{ x.id }}{% endfor %}/"><button type="button" class="btn btn-light-primary"> <i class="ki-solid ki-pencil">
+</i> Edit GRN</button></a>
+    <!--end::Edit button--> {% endcomment %}
+    {% comment %} {% for grn in grn %}
 <a href="#!" data-action-url="{% url 'core:delete-grn' grn.id %}" class="requires-admin"><button type="button" class="btn btn-light-danger"> <i class="ki-solid ki-eraser">
-</i> Delete GRN</button></a>
+</i> Delete GRN</button></a> 
+{% endfor %} {% endcomment %}
+{% for grn in grn %}
+<a href="/delete-grn/{{grn.id}}"><button type="button" class="btn btn-light-danger"> <i class="ki-solid ki-eraser">
+</i> Delete GRN</button></a> 
 {% endfor %}
 
     <button type="button" class="btn btn-success" onclick="printDiv('printableArea')"> <i class="ki-solid ki-abstract-10">
@@ -153,6 +157,9 @@
                         <div class="flex-root d-flex flex-column">
                             <span class="text-muted">GRN ID</span>
                             <span class="fs-6">{{ x.grn_number }}</span>
+                            <br/>
+                            <span class="text-muted">Destination</span>
+                            <span class="fs-6">{{ x.assigned_site.name }}</span>
                         </div>
 
                         <div class="flex-root d-flex flex-column">

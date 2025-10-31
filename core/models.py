@@ -160,7 +160,7 @@ class Product(TimeStamped):
     
     
     def __str__(self):
-        return f"{self.name} ({self.sku})"
+        return f"{self.name}"
     
     def stock_status(self):
         from core.models import GRNItems  # avoid circular import
@@ -289,7 +289,7 @@ class Container(TimeStamped):
     added_date = models.DateTimeField(auto_now=True)
     active = models.BooleanField(default=True)
     def __str__(self):
-        return f"{self.name} ({self.location})"
+        return f"{self.name}"
 
 class ContainerStock(TimeStamped):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='containerstock')
@@ -304,7 +304,7 @@ class ContainerStock(TimeStamped):
     sell_type = models.CharField(max_length=20, blank=True)
     
     def __str__(self):
-        return f"{self.product.name} ({self.product.sku})"  
+        return f"{self.product.name}"  
     
     def stock_status(self):
         from core.models import ContainerStock  # avoid circular import
